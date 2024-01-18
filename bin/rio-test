@@ -1,0 +1,142 @@
+#!/usr/bin/env python3
+#
+#
+
+import argparse
+import os
+import sys
+import time
+import traceback
+from functools import partial
+from struct import *
+
+from PyQt5 import QtGui
+from PyQt5.QtCore import QDateTime, Qt, QTimer
+from PyQt5.QtWidgets import QApplication, QCheckBox, QGridLayout, QLabel, QListWidget, QPushButton, QSlider, QWidget
+
+import riocore
+
+INTERVAL = 100
+
+parser = argparse.ArgumentParser()
+parser.add_argument("config", help="config", nargs="?", type=str, default=None)
+args = parser.parse_args()
+
+riocore_path = os.path.dirname(riocore.__file__)
+
+class WinForm(QWidget):
+    def __init__(self, parent=None):
+        super(WinForm, self).__init__(parent)
+        self.setWindowTitle(f"LinuxCNC-RIO - TestGui")
+
+        self.setMinimumWidth(800)
+
+        self.listFile = QListWidget()
+        layout = QGridLayout()
+        self.setLayout(layout)
+
+        self.project = riocore.Project(args.config)
+        self.project.connect("192.168.10.193:2390")
+
+        self.haldata = self.project.haldata()
+
+        row = 0
+        for plugin_instance, haldata in self.haldata.items():
+            row += 1
+            layout.addWidget(QLabel(f"{plugin_instance.title} ({plugin_instance.NAME})"), row, 0)
+            for hdir in ("output", "input"):
+                for halname, signal in haldata.get(hdir, {}).items():
+                    value = signal["value"]
+                    value_format = signal.get("format", "d")
+                    value_unit = signal.get("unit", "")
+                    value_str = f"%{value_format}" % (value,)
+                    halname_np = halname.split(".", 1)[-1]
+                    layout.addWidget(QLabel(f"    {halname_np}"), row, 1)
+                    if signal.get("bool"):
+                        signal[f"widget_{plugin_instance.title}"] = QCheckBox()
+                        signal[f"widget_{plugin_instance.title}"].setChecked(value)
+                    elif signal.get("direction") == "input":
+                        signal[f"widget_{plugin_instance.title}"] = QLabel("")
+                        signal[f"widget_{plugin_instance.title}"].setText(f"{value_str} {value_unit}")
+                    else:
+                        vmin = signal.get("min", 0)
+                        vmax = signal.get("max", 100000)
+                        signal[f"widget_{plugin_instance.title}"] = QSlider(Qt.Horizontal)
+                        signal[f"widget_{plugin_instance.title}"].setMinimum(vmin)
+                        signal[f"widget_{plugin_instance.title}"].setMaximum(vmax)
+                        signal[f"widget_{plugin_instance.title}"].setSingleStep(1)
+                        signal[f"widget_{plugin_instance.title}"].setPageStep((vmax - vmin) // 10)
+                        # signal[f"widget_{plugin_instance.title}"].setTickPosition(QSlider.TicksBelow)
+                        signal[f"widget_{plugin_instance.title}"].setValue(value)
+                        button = QPushButton("0")
+                        button.clicked.connect(partial(self.slider_reset, signal[f"widget_{plugin_instance.title}"]))
+                        layout.addWidget(button, row, 3)
+                        signal[f"widget_out_{plugin_instance.title}"] = QLabel("      ")
+                        layout.addWidget(signal[f"widget_out_{plugin_instance.title}"], row, 4)
+
+                    layout.addWidget(signal[f"widget_{plugin_instance.title}"], row, 2)
+                    row += 1
+
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.runTimer)
+        self.timer.start(INTERVAL)
+
+    def slider_reset(self, widget):
+        widget.setValue(0)
+
+    def runTimer(self):
+        try:
+            for plugin_instance, haldata in self.haldata.items():
+                for halname, signal in haldata.get("output", {}).items():
+                    if signal.get("bool"):
+                        if signal[f"widget_{plugin_instance.title}"].isChecked():
+                            self.project.signal_value_set(halname, 1)
+                        else:
+                            self.project.signal_value_set(halname, 0)
+                    else:
+                        value = signal[f"widget_{plugin_instance.title}"].value()
+                        signal[f"widget_out_{plugin_instance.title}"].setText(f"{value:05d}")
+                        self.project.signal_value_set(halname, value)
+
+            txdata = self.project.txdata_get()
+            print("tx:", txdata)
+
+            start = time.time()
+            rxdata = self.project.transfare(txdata)
+            stop = time.time()
+            print("rx:", rxdata)
+            print((stop - start) * 1000)
+
+            self.project.rxdata_set(rxdata)
+
+            for plugin_instance, haldata in self.haldata.items():
+                for halname, signal in haldata.get("input", {}).items():
+                    value = signal["value"]
+                    value_format = signal.get("format", "d")
+                    value_unit = signal.get("unit", "")
+                    value_str = f"%{value_format}" % (value,)
+                    if signal.get("bool"):
+                        signal[f"widget_{plugin_instance.title}"].setChecked(value)
+                    elif signal.get("direction") == "input":
+                        signal[f"widget_{plugin_instance.title}"].setText(f"{value_str} {value_unit}")
+                        """
+                        print(halname, value)
+                        if halname == "tm1638b8s7l80.svalue":
+                            s = f"{value:032b}"
+                            for n, c in enumerate(s):
+                                print(31-n, c)
+                        """
+                    else:
+                        signal[f"widget_{plugin_instance.title}"].setValue(value)
+
+            print("")
+        except Exception as e:
+            print("ERROR", e)
+            print(traceback.format_exc())
+
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    form = WinForm()
+    form.show()
+    sys.exit(app.exec_())

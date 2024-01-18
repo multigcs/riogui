@@ -1,0 +1,1158 @@
+#!/usr/bin/env python3
+#
+#
+
+import argparse
+import os
+import copy
+import glob
+import json
+import sys
+import time
+import traceback
+from functools import partial
+from struct import *
+
+import graphviz
+from PyQt5 import QtGui, QtSvg
+from PyQt5.QtCore import QDateTime, QSize, Qt, QTimer
+from PyQt5.QtGui import QColor, QFont, QStandardItem, QStandardItemModel
+from PyQt5.QtWidgets import (
+    QAbstractItemView,
+    QApplication,
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QDoubleSpinBox,
+    QFileDialog,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QMessageBox,
+    QPlainTextEdit,
+    QPushButton,
+    QScrollArea,
+    QSlider,
+    QSpinBox,
+    QTableWidget,
+    QTableWidgetItem,
+    QTabWidget,
+    QTreeView,
+    QVBoxLayout,
+    QWidget,
+)
+
+import riocore
+
+riocore_path = os.path.dirname(riocore.__file__)
+
+class MyStandardItem(QStandardItem):
+    def __init__(self, txt="", font_size=12, set_bold=False, color=QColor(0, 0, 0), key=None):
+        super().__init__()
+        self.key = key
+
+        self.setEditable(False)
+        self.setForeground(color)
+        self.setText(txt)
+
+
+class edit_float(QDoubleSpinBox):
+    def __init__(self, win, obj, key, vmin=None, vmax=None, cb=None):
+        super().__init__()
+        self.win = win
+        self.cb = cb
+        self.obj = obj
+        self.key = key
+        if vmin:
+            self.setMinimum(vmin)
+        else:
+            self.setMinimum(-999999)
+        if vmax:
+            self.setMaximum(vmax)
+        else:
+            self.setMaximum(999999)
+        if key in obj:
+            self.setValue(float(obj[key]))
+        self.editingFinished.connect(self.change)
+
+    def change(self):
+        self.obj[self.key] = self.value()
+        if self.cb:
+            self.cb(self.value())
+        self.win.display()
+
+
+class edit_int(QSpinBox):
+    def __init__(self, win, obj, key, vmin=None, vmax=None, cb=None):
+        super().__init__()
+        self.win = win
+        self.cb = cb
+        self.obj = obj
+        self.key = key
+        if vmin:
+            self.setMinimum(vmin)
+        else:
+            self.setMinimum(-999999)
+        if vmax:
+            self.setMaximum(vmax)
+        else:
+            self.setMaximum(999999)
+        if key in obj:
+            self.setValue(int(obj[key]))
+        self.editingFinished.connect(self.change)
+
+    def change(self):
+        self.obj[self.key] = self.value()
+        if self.cb:
+            self.cb(self.value())
+        self.win.display()
+
+
+class edit_text(QLineEdit):
+    def __init__(self, win, obj, key, cb=None):
+        super().__init__()
+        self.win = win
+        self.cb = cb
+        self.obj = obj
+        self.key = key
+        if key in obj:
+            self.setText(str(obj[key]))
+        self.textChanged.connect(self.change)
+
+    def change(self):
+        self.obj[self.key] = self.text()
+        if self.cb:
+            self.cb(self.text())
+        self.win.display()
+
+
+class edit_bool(QCheckBox):
+    def __init__(self, win, obj, key, cb=None):
+        super().__init__()
+        self.win = win
+        self.cb = cb
+        self.obj = obj
+        self.key = key
+        if key in obj:
+            self.setChecked(obj[key])
+        self.stateChanged.connect(self.change)
+
+    def change(self):
+        self.obj[self.key] = self.isChecked()
+        if self.cb:
+            self.cb(self.text())
+        self.win.display()
+
+
+class edit_combobox(QComboBox):
+    def __init__(self, win, obj, key, options, cb=None):
+        super().__init__()
+        self.win = win
+        self.cb = cb
+        self.obj = obj
+        self.key = key
+        options = options.copy()
+        if key in obj:
+            if obj[key] not in options:
+                options.append(obj[key])
+        else:
+            options.append("")
+        for option in options:
+            self.addItem(option)
+        self.setEditable(True)
+        if key in obj:
+            self.setCurrentIndex(options.index(obj[key]))
+        else:
+            self.setCurrentIndex(options.index(""))
+        self.activated.connect(self.change)
+
+    def change(self):
+        self.obj[self.key] = self.currentText()
+        if self.cb:
+            self.cb(self.currentText())
+        self.win.display()
+
+
+class modifier_selector(QComboBox):
+    def __init__(self, win, pin_setup, modifier_id, modifier_view):
+        super().__init__()
+        self.win = win
+        self.pin_setup = pin_setup
+        self.modifier_id = modifier_id
+        self.modifier_view = modifier_view
+        self.entrys = ["toggle", "debounce", "invert", "onerror", "--delete--"]
+        for entry in self.entrys:
+            self.addItem(entry)
+        active = pin_setup["modifier"][self.modifier_id]["type"]
+        self.setCurrentIndex(self.entrys.index(active))
+        self.setEditable(False)
+        self.activated.connect(self.change)
+
+    def change(self):
+        selected = self.currentText()
+        if selected == "--delete--":
+            del self.pin_setup["modifier"][self.modifier_id]
+            parent = self.modifier_view.parent()
+            while parent.rowCount() > 0:
+                parent.removeRow(0)
+            for modifier_id, modifier in enumerate(self.pin_setup.get("modifier", [])):
+                self.win.tree_add_modifier(parent, self.pin_setup, modifier_id, modifier)
+        else:
+            self.pin_setup["modifier"][self.modifier_id]["type"] = selected
+        self.win.display()
+
+
+class WinForm(QWidget):
+    def __init__(self, args, parent=None):
+        super(WinForm, self).__init__(parent)
+        self.setWindowTitle(f"LinuxCNC-RIO - Setup-GUI")
+        self.setMinimumWidth(1400)
+        self.setMinimumHeight(900)
+
+        self.listFile = QListWidget()
+        layout = QGridLayout()
+        self.setLayout(layout)
+
+        self.treeview = QTreeView()
+        # self.treeview.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.model = QStandardItemModel()
+        self.model.setHorizontalHeaderLabels(["Name", "Value"])
+        self.model.itemChanged.connect(self.itemChanged)
+        self.treeview.setModel(self.model)
+        self.treeview.setUniformRowHeights(True)
+
+        self.config_file = args.config
+
+        row = 0
+
+        layout.addWidget(self.treeview, row, 0)
+
+        tabwidget = QTabWidget()
+        layout.addWidget(tabwidget, row, 1)
+
+        self.pin_table = QTableWidget()
+        self.pin_table.setColumnCount(6)
+        self.pin_table.setHorizontalHeaderItem(0, QTableWidgetItem("Pin"))
+        self.pin_table.setHorizontalHeaderItem(1, QTableWidgetItem("Plugin"))
+        self.pin_table.setHorizontalHeaderItem(2, QTableWidgetItem("Pin-Name"))
+        self.pin_table.setHorizontalHeaderItem(3, QTableWidgetItem("Mapping"))
+        self.pin_table.setHorizontalHeaderItem(4, QTableWidgetItem("Direction"))
+        self.pin_table.setHorizontalHeaderItem(5, QTableWidgetItem("Comment"))
+
+        self.imagew = QtSvg.QSvgWidget()
+
+        scroll = QScrollArea()
+        scroll.setWidget(self.imagew)
+        scroll.setWidgetResizable(True)
+        tabwidget.addTab(scroll, "Flow")
+        tabwidget.addTab(self.pin_table, "Pintable")
+
+        self.jsonpreview = QPlainTextEdit()
+        self.jsonpreview.clear()
+        self.jsonpreview.insertPlainText("...")
+        self.jsonpreview.verticalScrollBar().setValue(0)
+        tabwidget.addTab(self.jsonpreview, "Json-Preview")
+
+        gateware_tabwidget = QTabWidget()
+        tabwidget.addTab(gateware_tabwidget, "Gateware")
+
+        linuxcnc_tabwidget = QTabWidget()
+        tabwidget.addTab(linuxcnc_tabwidget, "LinuxCNC")
+
+        self.gateware = {
+            "rio.v": QPlainTextEdit(),
+            "Makefile": QPlainTextEdit(),
+        }
+        self.linuxcnc = {
+            "rio.ini": QPlainTextEdit(),
+            "rio.hal": QPlainTextEdit(),
+            "custom_postgui.hal": QPlainTextEdit(),
+            "rio-gui.xml": QPlainTextEdit(),
+            "rio.c": QPlainTextEdit(),
+        }
+
+        for filename, widget in self.gateware.items():
+            widget.clear()
+            widget.insertPlainText("Please press generate ...")
+            widget.verticalScrollBar().setValue(0)
+            gateware_tabwidget.addTab(widget, filename)
+        for filename, widget in self.linuxcnc.items():
+            widget.clear()
+            widget.insertPlainText("Please press generate ...")
+            widget.verticalScrollBar().setValue(0)
+            linuxcnc_tabwidget.addTab(widget, filename)
+
+        row += 1
+
+        container = QWidget()
+        button_layout = QHBoxLayout(container)
+        layout.addWidget(container, row, 1)
+
+        self.info_widget = QLabel("loading...")
+        layout.addWidget(self.info_widget, row, 0)
+
+        button = QPushButton("Save")
+        button.clicked.connect(self.save_config)
+        button_layout.addWidget(button)
+
+        button = QPushButton("Generate")
+        button.clicked.connect(self.generate)
+        button_layout.addWidget(button)
+
+        button = QPushButton("reload tree")
+        button.clicked.connect(self.load_tree)
+        button_layout.addWidget(button)
+
+        button = QPushButton("reload config")
+        button.clicked.connect(self.config_load)
+        button_layout.addWidget(button)
+
+        row += 1
+
+        self.json_load()
+        self.config_load()
+        # self.load_tree()
+        # self.display()
+
+    def itemChanged(self, item):
+        pass
+        # print("itemChanged")
+        # if hasattr(item, "edit"):
+        #    item.edit(item)
+
+    def json_load(self):
+        # loading json config
+        configJsonStr = open(self.config_file, "r").read()
+        self.config = json.loads(configJsonStr)
+
+    def setup_merge(self, setup, defaults):
+        for key, value in defaults.items():
+            if key not in setup:
+                setup[key] = copy.deepcopy(value)
+            elif isinstance(value, dict):
+                self.setup_merge(setup[key], value)
+
+    def config_load(self):
+        self.info_widget.setText(self.config_file)
+
+        # loading board config
+        boardcfg = self.config.get("boardcfg")
+        if boardcfg:
+            board_file = f"{riocore_path}/boards/{boardcfg}.json"
+            self.board = {}
+            boardJsonStr = open(board_file, "r").read()
+            self.board = json.loads(boardJsonStr)
+
+        slot_pinmapping = {}
+        for slot in self.board.get("slots", []):
+            slot_name = slot["name"]
+            for pin_id, pin in slot["pins"].items():
+                pin_name = f"{slot_name}:{pin_id}"
+                slot_pinmapping[pin] = pin_name
+
+        # loading slot/module configs
+        self.modules = {}
+        for module in self.config.get("modules", []):
+            slot_name = module.get("slot")
+            module_name = module.get("module")
+            module_setup = module.get("setup", {})
+            moduleJsonStr = open(f"{riocore_path}/modules/{module_name}.json", "r").read()
+            module_defaults = json.loads(moduleJsonStr)
+
+            mplugins = riocore.Plugins()
+            for plugin_id, plugin_config in enumerate(module_defaults.get("plugins", [])):
+                plugin_type = plugin_config.get("type")
+                plugin_name = plugin_config.get("name")
+                if plugin_name not in module_setup:
+                    module_setup[plugin_name] = {}
+                self.setup_merge(module_setup[plugin_name], plugin_config)
+                if "pins" in module_setup[plugin_name]:
+                    for pin in module_setup[plugin_name]["pins"]:
+                        module_setup[plugin_name]["pins"][pin]["pin_mapped"] = module_setup[plugin_name]["pins"][pin]["pin"]
+                        del module_setup[plugin_name]["pins"][pin]["pin"]
+
+                mplugins.load_plugin(plugin_id, module_setup[plugin_name], self.config)
+
+            self.modules[slot_name] = {
+                "defaults": module_defaults,
+                "setup": module_setup,
+                "instances": mplugins.plugin_instances,
+            }
+
+        # loading plugins
+        self.plugins = riocore.Plugins()
+        for plugin_id, plugin_config in enumerate(self.config.get("plugins", [])):
+            plugin_type = plugin_config.get("type")
+            self.plugins.load_plugin(plugin_id, plugin_config, self.config)
+
+        self.items = {}
+
+        self.pinlist = []
+        self.pinmapping = {}
+        self.pinmapping_rev = {}
+        for plugin_instance in self.plugins.plugin_instances:
+            name = plugin_instance.plugin_setup.get("name")
+            title = plugin_instance.NAME
+            if name:
+                title = f"{name} ({plugin_instance.NAME})"
+            for pin_name, pin_defaults in plugin_instance.PINDEFAULTS.items():
+                pin_setup = plugin_instance.plugin_setup.get("pins", {}).get(pin_name, {})
+                if not pin_setup and pin_defaults.get("optional") is True:
+                    continue
+                pin = pin_setup["pin"]
+                if pin not in self.pinlist:
+                    self.pinlist.append(pin)
+        for slot in self.board.get("slots", []):
+            slot_name = slot.get("name")
+            slot_pins = slot.get("pins", {})
+            for pin_name, pin in slot_pins.items():
+                pin_id = f"{slot_name}:{pin_name}"
+                if pin not in self.pinlist:
+                    self.pinlist.append(pin)
+                self.pinmapping[pin_id] = pin
+                self.pinmapping_rev[pin] = pin_id
+                if pin_id not in self.pinlist:
+                    self.pinlist.append(pin_id)
+
+        # TODO: add expansion pins
+        self.pinlist.sort()
+
+        self.interfaces = []
+        for path in glob.glob("{riocore_path}/interfaces/*"):
+            self.interfaces.append(path.split("/")[-1])
+        self.boards = []
+        for path in glob.glob("{riocore_path}/boards/*.json"):
+            self.boards.append(path.split("/")[-1].split(".")[0])
+        self.module_names = []
+        for path in glob.glob("{riocore_path}/modules/*.json"):
+            self.module_names.append(path.split("/")[-1].split(".")[0])
+        self.slots = []
+
+        self.load_tree()
+        self.display()
+
+    def display(self):
+        self.overview_load()
+        self.pin_table_load()
+        self.json_preview()
+
+    def json_preview(self):
+        config = copy.deepcopy(self.config)
+        # cleanup
+        for module in config.get("modules", []):
+            slot_name = module.get("slot")
+            module_name = module.get("module")
+            module_setup = module.get("setup")
+            moduleJsonStr = open(f"{riocore_path}/modules/{module_name}.json", "r").read()
+            module_defaults = json.loads(moduleJsonStr)
+            for name, setup in module.get("setup", {}).items():
+                for pin, pin_setup in setup.get("pins", {}).items():
+                    del pin_setup["pin_mapped"]
+
+        self.jsonpreview.clear()
+        self.jsonpreview.insertPlainText(json.dumps(config, indent=4))
+        self.jsonpreview.verticalScrollBar().setValue(0)
+
+    def overview_load(self):
+        num = 0
+        in_use = set()
+
+        fpga_name = f"{self.config.get('boardcfg')}"
+
+        gAll = graphviz.Digraph("G", format="svg")
+        gAll.attr(rankdir="LR")
+        gAll.attr(bgcolor="black")
+
+        sportsr = []
+        sportsl = []
+
+        # show slots
+        for slot in self.board.get("slots", []):
+            slot_name = slot.get("name")
+            slot_pins = slot.get("pins", {})
+            mportsl = []
+            mportsr = []
+            for pin_name, pin in slot_pins.items():
+                pin_id = f"{slot_name}_{pin_name}"
+                mportsl.append(f"<{pin}>{pin}")
+                mportsr.append(f"<{pin_id}>{pin_name}")
+
+            label = f"{{ {{{' | '.join(mportsl)}}} | {slot_name} | {{{' | '.join(mportsr)}}} }}"
+            sportsr.append(label)
+
+        for plugin_instance in self.plugins.plugin_instances:
+            pports = []
+            name = plugin_instance.plugin_setup.get("name", plugin_instance.title)
+            title = plugin_instance.NAME
+            if name:
+                title = f"{name} ({plugin_instance.NAME})"
+
+            if plugin_instance.TYPE == "expansion":
+                title = plugin_instance.expansion_prefix
+
+            for pin_name, pin_defaults in plugin_instance.PINDEFAULTS.items():
+                pin_setup = plugin_instance.plugin_setup.get("pins", {}).get(pin_name, {})
+                pports.append(f"<{pin_name}>{pin_name}")
+                if not pin_setup and pin_defaults.get("optional") is True:
+                    continue
+                pin = pin_setup["pin"]
+
+                con_dev = fpga_name
+                con_pin = pin
+                if pin.startswith("EXPANSION"):
+                    con_dev = pin.split("_")[0]
+                    con_pin = pin.split("_")[1].replace("[", "").replace("]", "")
+
+                if ":" in con_pin:
+                    con_pin = con_pin.replace(":", "_")
+
+                if pin_defaults["direction"] == "input":
+                    modifiers = pin_setup.get("modifier", [])
+                    if modifiers:
+                        modifiers = reversed(modifiers)
+                    color = "green"
+                    arrow_dir = "back"
+                else:
+                    modifiers = pin_setup.get("modifier", [])
+                    color = "red"
+                    arrow_dir = "forward"
+
+                if modifiers:
+                    modifier_chain = []
+                    for modifier_num, modifier in enumerate(modifiers):
+                        modifier_type = modifier["type"]
+                        modifier_chain.append(modifier_type)
+                    modifier_label = f"{{ <l> | {' | '.join(modifier_chain)} | <r> }}"
+                    gAll.edge(f"{con_dev}:{con_pin}", f"{name}_{modifier_type}_{modifier_num}:l", dir=arrow_dir, color=color)
+                    con_dev = f"{name}_{modifier_type}_{modifier_num}"
+                    con_pin = "r"
+                    gAll.node(
+                        f"{name}_{modifier_type}_{modifier_num}",
+                        shape="record",
+                        label=modifier_label,
+                        fontsize="11pt",
+                        style="rounded, filled",
+                        fillcolor="lightyellow",
+                    )
+
+                gAll.edge(f"{con_dev}:{con_pin}", f"{title}:{pin_name}", dir=arrow_dir, color=color)
+
+                if ":" not in pin and not pin.startswith("EXPANSION"):
+                    sportsr.append(f"<{pin}>{pin}")
+
+                num += 1
+
+            net = plugin_instance.plugin_setup.get("net")
+            if net:
+                gAll.edge(f"{title}", f"{net}", dir="none", color="white", fontcolor="white")
+                gAll.node(
+                    net,
+                    shape="record",
+                    label=net,
+                    fontsize="11pt",
+                    style="rounded, filled",
+                    fillcolor="lightpink",
+                )
+
+            for signal_name, signal_config in plugin_instance.plugin_setup.get("signals", {}).items():
+                function = signal_config.get("function")
+                if function:
+                    gAll.edge(f"{title}", f"{function}", dir="none", color="white", fontcolor="white")
+                    gAll.node(
+                        function,
+                        shape="record",
+                        label=function,
+                        fontsize="11pt",
+                        style="rounded, filled",
+                        fillcolor="lightpink",
+                    )
+
+            if plugin_instance.TYPE == "expansion":
+                bits = plugin_instance.plugin_setup.get("bits", 8)
+
+                eports = []
+                for n in range(bits):
+                    eports.append(f"<INPUT{n}>INPUT[{n}]")
+                for n in range(bits):
+                    eports.append(f"<OUTPUT{n}>OUTPUT[{n}]")
+
+                label = f"{{ {{{' | '.join(pports)}}} | {title} | {{{' | '.join(eports)}}} }}"
+
+            else:
+                label = f"{{ {{{' | '.join(pports)}}} | {title} }}"
+
+            gAll.node(
+                title,
+                shape="record",
+                label=label,
+                fontsize="11pt",
+                style="rounded, filled",
+                fillcolor="lightblue",
+            )
+
+        for module_data in self.config.get("modules", []):
+            mportsl = []
+            mportsr = []
+            slot_name = module_data.get("slot")
+            module_name = module_data.get("module")
+            title = slot_name
+            if module_name:
+                title = f"{module_name} ({title})"
+
+            for plugin_instance in self.modules[slot_name]["instances"]:
+                pports = []
+                name = plugin_instance.plugin_setup.get("name")
+                title = plugin_instance.NAME
+                if name:
+                    title = f"{name} ({plugin_instance.NAME})"
+                for pin_name, pin_defaults in plugin_instance.PINDEFAULTS.items():
+                    pin_setup = plugin_instance.plugin_setup.get("pins", {}).get(pin_name, {})
+                    if "pin_mapped" not in pin_setup:
+                        continue
+
+                    # pin = self.pinmapping[f"{slot_name}:{pin_setup['pin_mapped']}"]
+                    pin = f"{slot_name}_{pin_setup['pin_mapped']}"
+
+                    con_dev = module_name
+                    con_pin = pin
+                    if pin.startswith("EXPANSION"):
+                        con_dev = pin.split("_")[0]
+                        con_pin = pin.split("_")[1].replace("[", "").replace("]", "")
+
+                    if pin_defaults["direction"] == "input":
+                        modifiers = pin_setup.get("modifier", [])
+                        if modifiers:
+                            modifiers = reversed(modifiers)
+                        color = "green"
+                        arrow_dir = "back"
+                    else:
+                        modifiers = pin_setup.get("modifier", [])
+                        color = "red"
+                        arrow_dir = "forward"
+
+                    if modifiers:
+                        modifier_chain = []
+                        for modifier_num, modifier in enumerate(modifiers):
+                            modifier_type = modifier["type"]
+                            modifier_chain.append(modifier_type)
+                        modifier_label = f"{{ <l> | {' | '.join(modifier_chain)} | <r> }}"
+                        gAll.edge(f"{con_dev}:{con_pin}", f"{name}_{modifier_type}_{modifier_num}:l", dir=arrow_dir, color=color)
+                        con_dev = f"{name}_{modifier_type}_{modifier_num}"
+                        con_pin = "r"
+                        gAll.node(
+                            f"{name}_{modifier_type}_{modifier_num}",
+                            shape="record",
+                            label=modifier_label,
+                            fontsize="11pt",
+                            style="rounded, filled",
+                            fillcolor="lightyellow",
+                        )
+
+                    gAll.edge(f"{con_dev}:{con_pin}", f"{title}:{pin_name}", dir=arrow_dir, color=color)
+
+                    mportsl.append(f"<{pin_setup['pin_mapped']}>{pin_setup['pin_mapped']}")
+                    mportsr.append(f"<{pin}>{pin}")
+                    pports.append(f"<{pin_name}>{pin_name}")
+
+                    if pin_defaults["direction"] == "input":
+
+                        gAll.edge(f"{fpga_name}:{pin}", f"{module_name}:{pin_setup['pin_mapped']}", dir="back", color="green", fontcolor="white")
+                        # gAll.edge(f"{module_name}:{pin}", f"{title}:{pin_name}", dir="back", label=modlabel, color="yellow", fontcolor="white")
+
+                    else:
+                        gAll.edge(f"{fpga_name}:{pin}", f"{module_name}:{pin_setup['pin_mapped']}", color="red", fontcolor="white")
+                        # gAll.edge(f"{module_name}:{pin}", f"{title}:{pin_name}", label=modlabel, color="red", fontcolor="white")
+
+                    sportsr.append(f"<{pin}>{pin}")
+
+                net = plugin_instance.plugin_setup.get("net")
+                if net:
+                    gAll.edge(f"{title}", f"{net}", dir="none", color="white", fontcolor="white")
+                    gAll.node(
+                        net,
+                        shape="record",
+                        label=net,
+                        fontsize="11pt",
+                        style="rounded, filled",
+                        fillcolor="lightpink",
+                    )
+
+                for signal_name, signal_config in plugin_instance.plugin_setup.get("signals", {}).items():
+                    function = signal_config.get("function")
+                    if function:
+                        gAll.edge(f"{title}", f"{function}", dir="none", color="white", fontcolor="white")
+                        gAll.node(
+                            function,
+                            shape="record",
+                            label=function,
+                            fontsize="11pt",
+                            style="rounded, filled",
+                            fillcolor="lightpink",
+                        )
+
+                label = f"{{ {{{' | '.join(pports)}}} | {title} }}"
+                gAll.node(
+                    title,
+                    shape="record",
+                    label=label,
+                    fontsize="11pt",
+                    style="rounded, filled",
+                    fillcolor="lightblue",
+                )
+
+            label = f"{{ {{{' | '.join(mportsl)}}} | {module_name} | {{{' | '.join(mportsr)}}} }}"
+            gAll.node(
+                module_name,
+                shape="record",
+                label=label,
+                fontsize="11pt",
+                style="rounded, filled",
+                fillcolor="lightgreen",
+            )
+
+        label = f"{{ {{{' | '.join(sportsl)}}} | {fpga_name} | {{{' | '.join(sportsr)}}} }}"
+        gAll.node(f"{fpga_name}", shape="record", label=label, fontsize="11pt", style="rounded, filled", fillcolor="yellow")
+
+        self.imagew.load(gAll.pipe().decode().encode())
+
+        # self.imagew.setFixedSize(QSize(800, 600))
+        # self.imagew.setFixedSize(self.imagew.renderer().defaultSize())
+
+    def pin_table_load(self):
+        self.pin_table.setRowCount(0)
+        num = 0
+        in_use = set()
+
+        for plugin_instance in self.plugins.plugin_instances:
+            name = plugin_instance.plugin_setup.get("name")
+            title = plugin_instance.NAME
+            if name:
+                title = f"{name} ({plugin_instance.NAME})"
+
+            for pin_name, pin_defaults in plugin_instance.PINDEFAULTS.items():
+                pin_setup = plugin_instance.plugin_setup.get("pins", {}).get(pin_name, {})
+                if not pin_setup and pin_defaults.get("optional") is True:
+                    continue
+                pin = pin_setup["pin"]
+                in_use.add(pin)
+                self.pin_table.setRowCount(num + 1)
+                pitem = QTableWidgetItem(pin)
+                self.pin_table.setItem(num, 0, pitem)
+                titem = QTableWidgetItem(title)
+                self.pin_table.setItem(num, 1, titem)
+                nitem = QTableWidgetItem(pin_name)
+                self.pin_table.setItem(num, 2, nitem)
+                if pin in self.pinmapping_rev:
+                    mitem = QTableWidgetItem(self.pinmapping_rev[pin])
+                    self.pin_table.setItem(num, 3, mitem)
+                elif pin in self.pinmapping:
+                    mitem = QTableWidgetItem(self.pinmapping[pin])
+                    self.pin_table.setItem(num, 3, mitem)
+
+                ditem = QTableWidgetItem(pin_defaults["direction"])
+                self.pin_table.setItem(num, 4, ditem)
+                modifiers = pin_setup.get("modifier")
+                if modifiers:
+                    mlist = set()
+                    for modifier in modifiers:
+                        mlist.add(modifier["type"])
+                    ditem = QTableWidgetItem(f"{','.join(mlist)}")
+                    self.pin_table.setItem(num, 5, ditem)
+
+                num += 1
+
+        for module_data in self.config.get("modules", []):
+            slot_name = module_data.get("slot")
+            module_name = module_data.get("module")
+            title = slot_name
+            if module_name:
+                title = f"{module_name} ({title})"
+
+            for plugin_instance in self.modules[slot_name]["instances"]:
+                name = plugin_instance.plugin_setup.get("name")
+                title = plugin_instance.NAME
+                if name:
+                    title = f"{name} ({plugin_instance.NAME})"
+                for pin_name, pin_defaults in plugin_instance.PINDEFAULTS.items():
+                    pin_setup = plugin_instance.plugin_setup.get("pins", {}).get(pin_name, {})
+                    if "pin_mapped" not in pin_setup:
+                        continue
+
+                    # TODO: remove pin_mapped while saving
+                    pin = self.pinmapping[f"{slot_name}:{pin_setup['pin_mapped']}"]
+
+                    in_use.add(pin)
+                    self.pin_table.setRowCount(num + 1)
+                    pitem = QTableWidgetItem(pin)
+                    self.pin_table.setItem(num, 0, pitem)
+                    titem = QTableWidgetItem(title)
+                    self.pin_table.setItem(num, 1, titem)
+                    nitem = QTableWidgetItem(pin_name)
+                    self.pin_table.setItem(num, 2, nitem)
+                    if pin in self.pinmapping_rev:
+                        mitem = QTableWidgetItem(self.pinmapping_rev[pin])
+                        self.pin_table.setItem(num, 3, mitem)
+                    elif pin in self.pinmapping:
+                        mitem = QTableWidgetItem(self.pinmapping[pin])
+                        self.pin_table.setItem(num, 3, mitem)
+
+                    ditem = QTableWidgetItem(pin_defaults["direction"])
+                    self.pin_table.setItem(num, 4, ditem)
+                    modifiers = pin_setup.get("modifier")
+                    if modifiers:
+                        mlist = set()
+                        for modifier in modifiers:
+                            mlist.add(modifier["type"])
+                        ditem = QTableWidgetItem(f"{','.join(mlist)}")
+                        self.pin_table.setItem(num, 5, ditem)
+                    num += 1
+
+        for pin in self.pinlist:
+            if pin not in in_use:
+                if pin in self.pinmapping:
+                    continue
+                if pin in self.pinmapping_rev:
+                    if self.pinmapping_rev[pin] in in_use:
+                        continue
+                self.pin_table.setRowCount(num + 1)
+                pitem = QTableWidgetItem(pin)
+                self.pin_table.setItem(num, 0, pitem)
+                titem = QTableWidgetItem("")
+                self.pin_table.setItem(num, 1, titem)
+                nitem = QTableWidgetItem("")
+                self.pin_table.setItem(num, 2, nitem)
+                if pin in self.pinmapping_rev:
+                    mitem = QTableWidgetItem(self.pinmapping_rev[pin])
+                    self.pin_table.setItem(num, 3, mitem)
+                num += 1
+        self.pin_table.resizeColumnToContents(0)
+
+    def edit_item(self, obj, key, var_setup=None, cb=None):
+        if var_setup is None:
+            var_setup = {}
+        if key not in obj and "default" in var_setup:
+            obj[key] = var_setup["default"]
+        if var_setup["type"] == "select":
+            return edit_combobox(self, obj, key, var_setup.get("options", []), cb=cb)
+        elif var_setup["type"] == int:
+            return edit_int(self, obj, key, vmin=var_setup.get("min"), vmax=var_setup.get("max"), cb=cb)
+        elif var_setup["type"] == float:
+            return edit_float(self, obj, key, vmin=var_setup.get("min"), vmax=var_setup.get("max"), cb=cb)
+        elif var_setup["type"] == bool:
+            return edit_bool(self, obj, key, cb=cb)
+        return edit_text(self, obj, key, cb=cb)
+
+    def load_tree(self):
+        while self.model.rowCount() > 0:
+            self.model.removeRow(0)
+
+        for key, var_setup in {
+            "name": {"type": str},
+            "description": {"type": str},
+            "boardcfg": {"type": "select", "options": self.boards},
+            "transport": {"type": "select", "options": self.interfaces, "default": "UDP"},
+            "axis": {"type": int, "min": 0, "max": 9, "default": 3},
+        }.items():
+
+            aitem = QStandardItem()
+            self.model.appendRow(
+                [
+                    MyStandardItem(key.title()),
+                    aitem,
+                ]
+            )
+            self.treeview.setIndexWidget(aitem.index(), self.edit_item(self.config, key, var_setup))
+
+        tree_modules = MyStandardItem("Modules")
+        self.model.appendRow(tree_modules)
+        self.treeview.expand(self.model.indexFromItem(tree_modules))
+        # if "modules" not in self.config:
+        #    self.config["modules"] = []
+
+        for module_data in self.config.get("modules", []):
+            slot_name = module_data.get("slot")
+            module_name = module_data.get("module")
+            title = slot_name
+            if module_name:
+                title = f"{module_name} ({title})"
+            aitem = QStandardItem()
+            tree_modules.appendRow(
+                [
+                    MyStandardItem(title),
+                    MyStandardItem(""),
+                ]
+            )
+            module_view = tree_modules.child(tree_modules.rowCount() - 1)
+            self.treeview.expand(self.model.indexFromItem(module_view))
+
+            for key, var_setup in {
+                "module": {"type": "select", "options": self.module_names},
+                "slot": {"type": "select", "options": self.slots},
+            }.items():
+                aitem = QStandardItem()
+                module_view.appendRow(
+                    [
+                        MyStandardItem(key.title()),
+                        aitem,
+                    ]
+                )
+                self.treeview.setIndexWidget(aitem.index(), self.edit_item(module_data, key, var_setup))
+
+            module_plugins_view = MyStandardItem("Plugins")
+            module_view.appendRow(module_plugins_view)
+
+            # self.treeview.expand(self.model.indexFromItem(module_plugins_view))
+
+            for plugin_instance in self.modules[slot_name]["instances"]:
+                self.tree_add_plugin(module_plugins_view, plugin_instance, nopins=True, expand=False)
+
+        bitem = QStandardItem()
+        self.model.appendRow(
+            [
+                MyStandardItem("Plugins"),
+                bitem,
+            ]
+        )
+        self.tree_plugins = self.model.item(self.model.rowCount() - 1)
+
+        button = QPushButton("add plugin")
+        button.clicked.connect(self.add_plugin)
+        button.setMaximumSize(button.sizeHint())
+        self.treeview.setIndexWidget(bitem.index(), button)
+        self.treeview.expand(self.model.indexFromItem(self.tree_plugins))
+
+        for plugin_instance in self.plugins.plugin_instances:
+            self.tree_add_plugin(self.tree_plugins, plugin_instance)
+
+        self.treeview.header().resizeSection(0, 300)
+        self.treeview.header().resizeSection(1, 200)
+
+    def add_modifier(self, parent, pin_setup):
+        if "modifier" not in pin_setup:
+            pin_setup["modifier"] = []
+        modifier_id = len(pin_setup.get("modifier", []))
+        pin_setup["modifier"].append({"type": "invert"})
+        modifier = pin_setup["modifier"][-1]
+        self.tree_add_modifier(parent, pin_setup, modifier_id, modifier)
+        self.display()
+
+    def add_plugin(self, widget):
+        plugin_type = self.select_plugin()
+        if not plugin_type:
+            return
+        plugin_id = len(self.config["plugins"])
+        self.config["plugins"].append(
+            {
+                "type": plugin_type,
+                "pins": {},
+            }
+        )
+        plugin_instance = self.plugins.load_plugin(plugin_id, self.config["plugins"][plugin_id], self.config)
+        if plugin_instance:
+            for pin_name, pin_defaults in plugin_instance.PINDEFAULTS.items():
+                self.config["plugins"][plugin_id]["pins"][pin_name] = {"pin": "xxx"}
+            self.tree_add_plugin(self.tree_plugins, plugin_instance, expand=True)
+        self.display()
+
+    def del_plugin(self, plugin_instance, plugin_id, widget):
+
+        self.config["plugins"].pop(plugin_id)
+
+        self.config_load()
+        # self.load_tree()
+        # self.display()
+
+    def select_plugin(self):
+        dialog = QDialog()
+        dialog.setWindowTitle("add Plugin")
+
+        dialog.buttonBox = QDialogButtonBox(QDialogButtonBox.Ok)
+        dialog.buttonBox.accepted.connect(dialog.accept)
+
+        dialog.layout = QVBoxLayout()
+        message = QLabel("Plugin-Type:")
+        dialog.layout.addWidget(message)
+
+        combo = QComboBox(self)
+        for plugin in self.plugins.list():
+            combo.addItem(plugin["name"])
+        dialog.layout.addWidget(combo)
+
+        dialog.layout.addWidget(dialog.buttonBox)
+        dialog.setLayout(dialog.layout)
+
+        if dialog.exec():
+            return combo.currentText()
+
+    def generate(self):
+        config = copy.deepcopy(self.config)
+        # cleanup
+        for module in config.get("modules", []):
+            slot_name = module.get("slot")
+            module_name = module.get("module")
+            module_setup = module.get("setup")
+            moduleJsonStr = open(f"{riocore_path}/modules/{module_name}.json", "r").read()
+            module_defaults = json.loads(moduleJsonStr)
+            for name, setup in module.get("setup", {}).items():
+                for pin, pin_setup in setup.get("pins", {}).items():
+                    del pin_setup["pin_mapped"]
+
+        project = riocore.Project(json.dumps(config, indent=4))
+        project.generator()
+
+        config_name = self.config.get("name")
+
+        for filename, widget in self.gateware.items():
+            file_content = open(f"Output/{config_name}/Gateware/{filename}", "r").read()
+            widget.clear()
+            widget.insertPlainText(file_content)
+            widget.verticalScrollBar().setValue(0)
+
+        for filename, widget in self.linuxcnc.items():
+            if filename == "rio.c":
+                file_content = open(f"Output/{config_name}/LinuxCNC/Component/{filename}", "r").read()
+            else:
+                file_content = open(f"Output/{config_name}/LinuxCNC/Configuration/{filename}", "r").read()
+            widget.clear()
+            widget.insertPlainText(file_content)
+            widget.verticalScrollBar().setValue(0)
+
+    def save_config(self, widget):
+        print("save...")
+        config = copy.deepcopy(self.config)
+        # cleanup
+        for module in config.get("modules", []):
+            slot_name = module.get("slot")
+            module_name = module.get("module")
+            module_setup = module.get("setup")
+            moduleJsonStr = open(f"{riocore_path}/modules/{module_name}.json", "r").read()
+            module_defaults = json.loads(moduleJsonStr)
+            for name, setup in module.get("setup", {}).items():
+                for pin, pin_setup in setup.get("pins", {}).items():
+                    del pin_setup["pin_mapped"]
+
+        file_dialog = QFileDialog(self)
+        file_dialog.setNameFilters(["json (*.json)"])
+        name = file_dialog.getSaveFileName(self, "Save File", self.config_file, "json (*.json)")
+        if name[0]:
+            open(name[0], "w").write(json.dumps(config, indent=4))
+
+    def tree_add_plugin(self, parent, plugin_instance, nopins=False, expand=False):
+        name = plugin_instance.plugin_setup.get("name")
+        title = plugin_instance.NAME
+        if name:
+            title = f"{name} ({plugin_instance.NAME})"
+
+        aitem = QStandardItem()
+        parent.appendRow(
+            [
+                MyStandardItem(title),
+                aitem,
+            ]
+        )
+        button = QPushButton("delete")
+        cb = partial(self.del_plugin, plugin_instance, plugin_instance.plugin_id)
+        button.clicked.connect(cb)
+        button.setMaximumSize(button.sizeHint())
+        self.treeview.setIndexWidget(aitem.index(), button)
+
+        plugin_view = parent.child(parent.rowCount() - 1)
+        self.tree_add_options(plugin_view, plugin_instance, expand=expand)
+        self.tree_add_pins(plugin_view, plugin_instance, expand=expand, nopins=nopins)
+        if expand:
+            self.treeview.expand(self.model.indexFromItem(plugin_view))
+
+    def callback_plugin_name(self, parent, plugin_instance, value):
+        parent.setText(f"{value} ({plugin_instance.NAME})")
+
+    def tree_add_options(self, parent, plugin_instance, expand=False):
+        for option_name, option_defaults in plugin_instance.OPTIONS.items():
+            aitem = QStandardItem()
+            parent.appendRow(
+                [
+                    MyStandardItem(option_name.title()),
+                    aitem,
+                ]
+            )
+            cb = partial(self.callback_plugin_name, parent, plugin_instance)
+            self.treeview.setIndexWidget(aitem.index(), self.edit_item(plugin_instance.plugin_setup, option_name, option_defaults, cb=cb))
+
+            options_view = parent.child(parent.rowCount() - 1)
+            if expand:
+                self.treeview.expand(self.model.indexFromItem(options_view))
+
+    def tree_add_modifier(self, parent, pin_setup, modifier_id, modifier):
+        mitem = QStandardItem()
+        parent.appendRow(
+            [
+                MyStandardItem("Modifier"),
+                mitem,
+                MyStandardItem(""),
+            ]
+        )
+        modifier_view = parent.child(parent.rowCount() - 1)
+        self.treeview.setIndexWidget(mitem.index(), modifier_selector(self, pin_setup, modifier_id, modifier_view))
+
+    def tree_add_pins(self, parent, plugin_instance, expand=False, nopins=False):
+        pins_view = MyStandardItem("Pins")
+        parent.appendRow(pins_view)
+        if expand:
+            self.treeview.expand(self.model.indexFromItem(pins_view))
+        for pin_name, pin_defaults in plugin_instance.PINDEFAULTS.items():
+            pin_setup = plugin_instance.plugin_setup.get("pins", {}).get(pin_name, {})
+            citem = QStandardItem()
+            pins_view.appendRow(
+                [
+                    MyStandardItem(pin_name),
+                    citem,
+                ]
+            )
+            if not nopins:
+                self.treeview.setIndexWidget(citem.index(), self.edit_item(pin_setup, "pin", {"type": "select", "options": self.pinlist}))
+
+            pin_view = pins_view.child(pins_view.rowCount() - 1)
+            if expand:
+                self.treeview.expand(self.model.indexFromItem(pin_view))
+
+            pitem = QStandardItem()
+            pin_view.appendRow(
+                [
+                    QStandardItem("Pullup"),
+                    pitem,
+                ]
+            )
+            self.treeview.setIndexWidget(pitem.index(), self.edit_item(pin_setup, "pullup", {"type": bool}))
+
+            bitem = QStandardItem()
+            pin_view.appendRow(
+                [
+                    QStandardItem("Modifiers"),
+                    bitem,
+                ]
+            )
+            button = QPushButton("add")
+            button.setMaximumSize(button.sizeHint())
+            self.treeview.setIndexWidget(bitem.index(), button)
+            modifiers_view = pin_view.child(pin_view.rowCount() - 1)
+            button.clicked.connect(partial(self.add_modifier, modifiers_view, pin_setup))
+            if expand:
+                self.treeview.expand(self.model.indexFromItem(modifiers_view))
+
+            for modifier_id, modifier in enumerate(pin_setup.get("modifier", [])):
+                self.tree_add_modifier(modifiers_view, pin_setup, modifier_id, modifier)
+            self.treeview.expand(self.model.indexFromItem(modifiers_view))
+
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("config", help="config", nargs="?", type=str, default=None)
+    args = parser.parse_args()
+
+    form = WinForm(args)
+    form.show()
+    sys.exit(app.exec_())
