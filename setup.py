@@ -3,10 +3,11 @@
 # ls data/* | awk '{print "\""$1"\""}' | tr "\n" ","
 #
 
-import os
 import glob
-from setuptools import setup
+import os
+
 from riocore.VERSION import VERSION
+from setuptools import setup
 
 scripts = []
 package_data = {}
@@ -30,4 +31,3 @@ setup(
     install_requires=["riocore", "PyQt5"],
     include_package_data=True,
 )
-

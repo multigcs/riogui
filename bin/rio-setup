@@ -224,7 +224,14 @@ class WinForm(QWidget):
         self.treeview.setModel(self.model)
         self.treeview.setUniformRowHeights(True)
 
-        self.config_file = args.config
+        if os.path.isfile(args.config):
+            self.config_file = args.config
+        elif os.path.isfile(f"{riocore_path}/configs/{args.config}"):
+            self.config_file = f"{riocore_path}/configs/{args.config}"
+        else:
+            print(f"can not load: {args.config}")
+            exit(1)
+        print(f"loading: {self.config_file}")
 
         row = 0
 
