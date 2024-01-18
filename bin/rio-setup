@@ -342,13 +342,21 @@ class WinForm(QWidget):
             elif isinstance(value, dict):
                 self.setup_merge(setup[key], value)
 
+    def get_path(self, path):
+        if os.path.exists(path):
+            return path
+        elif os.path.exists(f"{riocore_path}/{path}"):
+            return f"{riocore_path}/{path}"
+        print(f"can not find path: {path}")
+        exit(1)
+
     def config_load(self):
         self.info_widget.setText(self.config_file)
 
         # loading board config
         boardcfg = self.config.get("boardcfg")
         if boardcfg:
-            board_file = f"{riocore_path}/boards/{boardcfg}.json"
+            board_file = self.get_path(f"boards/{boardcfg}.json")
             self.board = {}
             boardJsonStr = open(board_file, "r").read()
             self.board = json.loads(boardJsonStr)
@@ -366,7 +374,8 @@ class WinForm(QWidget):
             slot_name = module.get("slot")
             module_name = module.get("module")
             module_setup = module.get("setup", {})
-            moduleJsonStr = open(f"{riocore_path}/modules/{module_name}.json", "r").read()
+            module_path = self.get_path(f"modules/{module_name}.json")
+            moduleJsonStr = open(module_path, "r").read()
             module_defaults = json.loads(moduleJsonStr)
 
             mplugins = riocore.Plugins()
@@ -427,14 +436,17 @@ class WinForm(QWidget):
         # TODO: add expansion pins
         self.pinlist.sort()
 
+        boards_path = self.get_path(f"boards/")
+        modules_path = self.get_path(f"modules/")
+
         self.interfaces = []
-        for path in glob.glob("{riocore_path}/interfaces/*"):
+        for path in glob.glob(f"{riocore_path}/interfaces/*"):
             self.interfaces.append(path.split("/")[-1])
         self.boards = []
-        for path in glob.glob("{riocore_path}/boards/*.json"):
+        for path in glob.glob(f"{boards_path}/*.json"):
             self.boards.append(path.split("/")[-1].split(".")[0])
         self.module_names = []
-        for path in glob.glob("{riocore_path}/modules/*.json"):
+        for path in glob.glob(f"{modules_path}/*.json"):
             self.module_names.append(path.split("/")[-1].split(".")[0])
         self.slots = []
 
@@ -453,7 +465,8 @@ class WinForm(QWidget):
             slot_name = module.get("slot")
             module_name = module.get("module")
             module_setup = module.get("setup")
-            moduleJsonStr = open(f"{riocore_path}/modules/{module_name}.json", "r").read()
+            module_path = self.get_path(f"modules/{module_name}.json")
+            moduleJsonStr = open(module_path, "r").read()
             module_defaults = json.loads(moduleJsonStr)
             for name, setup in module.get("setup", {}).items():
                 for pin, pin_setup in setup.get("pins", {}).items():
@@ -1001,7 +1014,8 @@ class WinForm(QWidget):
             slot_name = module.get("slot")
             module_name = module.get("module")
             module_setup = module.get("setup")
-            moduleJsonStr = open(f"{riocore_path}/modules/{module_name}.json", "r").read()
+            module_path = self.get_path(f"modules/{module_name}.json")
+            moduleJsonStr = open(module_path, "r").read()
             module_defaults = json.loads(moduleJsonStr)
             for name, setup in module.get("setup", {}).items():
                 for pin, pin_setup in setup.get("pins", {}).items():
@@ -1035,7 +1049,8 @@ class WinForm(QWidget):
             slot_name = module.get("slot")
             module_name = module.get("module")
             module_setup = module.get("setup")
-            moduleJsonStr = open(f"{riocore_path}/modules/{module_name}.json", "r").read()
+            module_path = self.get_path(f"modules/{module_name}.json")
+            moduleJsonStr = open(module_path, "r").read()
             module_defaults = json.loads(moduleJsonStr)
             for name, setup in module.get("setup", {}).items():
                 for pin, pin_setup in setup.get("pins", {}).items():
