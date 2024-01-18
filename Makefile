@@ -15,3 +15,9 @@ dist:
 
 pypi: clean dist
 	twine upload --verbose dist/riogui*
+
+pyvenv: clean dist
+	python3 -m venv pyvenv
+	pyvenv/bin/python -m pip install -r requirements.txt
+	pyvenv/bin/python -m pip install dist/riogui*
+	pyvenv/bin/python bin/rio-setup Altera10M08Eval/config-test.json
