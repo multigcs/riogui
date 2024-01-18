@@ -6,8 +6,9 @@
 import glob
 import os
 
-from riocore.VERSION import VERSION
 from setuptools import setup
+
+VERSION = "0.0.3"
 
 scripts = []
 package_data = {}
@@ -28,6 +29,6 @@ setup(
     license="LICENSE",
     description="riogui",
     long_description=open("README.md").read(),
-    install_requires=["riocore>=0.0.2", "PyQt5>=5.15", "graphviz>=0.20"],
+    install_requires=["riocore>=0.0.3", "PyQt5>=5.15", "graphviz>=0.20"],
     include_package_data=True,
 )
