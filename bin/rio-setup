@@ -183,7 +183,8 @@ class modifier_selector(QComboBox):
         self.pin_setup = pin_setup
         self.modifier_id = modifier_id
         self.modifier_view = modifier_view
-        self.entrys = ["toggle", "debounce", "invert", "onerror", "--delete--"]
+        self.entrys = list(set(riocore.plugins.Modifiers().pin_modifier_list()))
+        self.entrys.append("--delete--")
         for entry in self.entrys:
             self.addItem(entry)
         active = pin_setup["modifier"][self.modifier_id]["type"]
