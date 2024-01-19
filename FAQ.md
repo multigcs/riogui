@@ -26,4 +26,12 @@ or inverting an output pin for LED's
 you can also combine different modifiers and use them multiple times in a chain
 
 
+## I can only use rio for LinuxCNC ?
 
+no, you can also use it as a basis for other projects,
+for example to build measurement and test instruments for your electronics lab (frequency counters, pulse generators, ... on FPGA basis)
+
+
+## can i use the UART interface for LinuxCNC ?
+
+the latency is too high for these kind of real-time tasks
