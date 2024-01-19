@@ -1,0 +1,16 @@
+#FAQ
+
+## What are slots and modules ?
+
+this are only abstractions and pinout-mappings for easier reuse of modules like a Arduino-CNC-Shield to other boards.
+
+Sometimes it is difficult to assign the correct PIN of an FPGA to the pin of a connector.
+Since PMOD is a standard connector (and present on many FPGA boards) and is numbered P1->P12, it is quite easy to assign a function to its pins.
+Furthermore, it is also easier if someone has already defined a PMOD module, for example, so you only have to specify which module is connected to which connector and no longer the individual pins.
+the same applies to arduino-compatible shields (ChipKit).
+
+## What are expansions ?
+if you have a small FPGA with a small number of pins, you can increase the number of inputs and outputs with an expansion-board (like shiftregisters)
+
+so you can easily create a lot of pins from 4 pins (Clock/IN/OUT/Load) -> 8,16,32,...128,... :)
+
