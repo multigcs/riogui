@@ -1,4 +1,4 @@
-#FAQ
+# FAQ
 
 ## What are slots and modules ?
 
@@ -13,4 +13,17 @@ the same applies to arduino-compatible shields (ChipKit).
 if you have a small FPGA with a small number of pins, you can increase the number of inputs and outputs with an expansion-board (like shiftregisters)
 
 so you can easily create a lot of pins from 4 pins (Clock/IN/OUT/Load) -> 8,16,32,...128,... :)
+
+
+## What are pin modifiers ?
+
+you can configure a chain of modifiers for each input and output pin.
+
+for example toggle or debounce function for push buttons
+
+or inverting an output pin for LED's
+
+you can also combine different modifiers and use them multiple times in a chain
+
+
 
