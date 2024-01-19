@@ -186,7 +186,6 @@ class edit_combobox(QComboBox):
             self.cb(self.currentText())
         self.win.display()
 
-
 class modifier_selector(QComboBox):
     def __init__(self, win, pin_setup, modifier_id, modifier_view, help_text=None):
         super().__init__()
@@ -463,6 +462,10 @@ class WinForm(QWidget):
         for path in glob.glob(f"{modules_path}/*.json"):
             self.module_names.append(path.split("/")[-1].split(".")[0])
         self.slots = []
+        for slot in self.board.get("slots", []):
+            slot_name = slot.get("name")
+            if slot_name:
+                self.slots.append(slot_name)
 
         self.load_tree()
         self.display()
@@ -816,7 +819,10 @@ class WinForm(QWidget):
                         continue
 
                     # TODO: remove pin_mapped while saving
-                    pin = self.pinmapping[f"{slot_name}:{pin_setup['pin_mapped']}"]
+                    pin_str = f"{slot_name}:{pin_setup['pin_mapped']}"
+                    if pin_str not in self.pinmapping:
+                        continue
+                    pin = self.pinmapping[pin_str]
 
                     in_use.add(pin)
                     self.pin_table.setRowCount(num + 1)
@@ -890,7 +896,6 @@ class WinForm(QWidget):
             "transport": {"type": "select", "options": self.interfaces, "default": "UDP"},
             "axis": {"type": int, "min": 0, "max": 9, "default": 3},
         }.items():
-
             aitem = QStandardItem()
             self.model.appendRow(
                 [
@@ -900,11 +905,23 @@ class WinForm(QWidget):
             )
             self.treeview.setIndexWidget(aitem.index(), self.edit_item(self.config, key, var_setup))
 
-        tree_modules = MyStandardItem("Modules")
-        self.model.appendRow(tree_modules)
+
+        bitem = QStandardItem()
+        self.model.appendRow(
+            [
+                MyStandardItem("Modules", help_text="Module-Configuration"),
+                bitem,
+            ]
+        )
+        tree_modules = self.model.item(self.model.rowCount() - 1)
+
+        button = QPushButton("add module")
+        button.clicked.connect(self.add_module)
+        button.setMaximumSize(button.sizeHint())
+        self.treeview.setIndexWidget(bitem.index(), button)
         self.treeview.expand(self.model.indexFromItem(tree_modules))
-        # if "modules" not in self.config:
-        #    self.config["modules"] = []
+
+
 
         for module_data in self.config.get("modules", []):
             slot_name = module_data.get("slot")
@@ -933,7 +950,7 @@ class WinForm(QWidget):
                         aitem,
                     ]
                 )
-                self.treeview.setIndexWidget(aitem.index(), self.edit_item(module_data, key, var_setup))
+                self.treeview.setIndexWidget(aitem.index(), self.edit_item(module_data, key, var_setup, cb=self.slot_change))
 
             module_plugins_view = MyStandardItem("Plugins")
             module_view.appendRow(module_plugins_view)
@@ -964,6 +981,9 @@ class WinForm(QWidget):
         self.treeview.header().resizeSection(0, 300)
         self.treeview.header().resizeSection(1, 200)
 
+    def slot_change(self, widget):
+        self.config_load()
+
     def add_modifier(self, parent, pin_setup):
         if "modifier" not in pin_setup:
             pin_setup["modifier"] = []
@@ -991,10 +1011,75 @@ class WinForm(QWidget):
             self.tree_add_plugin(self.tree_plugins, plugin_instance, expand=True)
         self.display()
 
+    def add_module(self, widget):
+        while True:
+            print("select")
+            slot_name, module_name = self.select_module()
+            if not module_name or not slot_name:
+                print("cancel")
+                return
+
+            module_path = self.get_path(f"modules/{module_name}.json")
+            moduleJsonStr = open(module_path, "r").read()
+            module_defaults = json.loads(moduleJsonStr)
+
+            slot_setup = {}
+            for slot in self.board.get("slots", []):
+                if slot_name == slot["name"]:
+                    slot_setup = slot
+            slot_pins = slot_setup.get("pins", {})
+
+            check = True
+            for plugin in module_defaults.get("plugins"):
+                for pin_name, pin_config in plugin.get("pins", {}).items():
+                    pin_location = pin_config.get("pin")
+                    print(pin_location , slot_pins)
+                    if pin_location not in slot_pins:
+                        check = False
+
+            if check is True:
+                break
+            else:
+                print("ERROR: module/slot is not compatible")
+
+        if "modules" not in self.config:
+            self.config["modules"] = []
+
+        module_id = len(self.config["modules"])
+        module_setup = {}
+        self.config["modules"].append(
+            {
+                "slot": slot_name,
+                "module": module_name,
+                "setup": module_setup,
+            }
+        )
+        print("module_instance", self.config["modules"])
+
+        mplugins = riocore.Plugins()
+        for plugin_id, plugin_config in enumerate(module_defaults.get("plugins", [])):
+            plugin_type = plugin_config.get("type")
+            plugin_name = plugin_config.get("name")
+            if plugin_name not in module_setup:
+                module_setup[plugin_name] = {}
+            self.setup_merge(module_setup[plugin_name], plugin_config)
+            if "pins" in module_setup[plugin_name]:
+                for pin in module_setup[plugin_name]["pins"]:
+                    module_setup[plugin_name]["pins"][pin]["pin_mapped"] = module_setup[plugin_name]["pins"][pin]["pin"]
+                    del module_setup[plugin_name]["pins"][pin]["pin"]
+
+            mplugins.load_plugin(plugin_id, module_setup[plugin_name], self.config)
+
+        self.modules[slot_name] = {
+            "defaults": module_defaults,
+            "setup": module_setup,
+            "instances": mplugins.plugin_instances,
+        }
+
+        self.config_load()
+
     def del_plugin(self, plugin_instance, plugin_id, widget):
-
         self.config["plugins"].pop(plugin_id)
-
         self.config_load()
         # self.load_tree()
         # self.display()
@@ -1020,6 +1105,38 @@ class WinForm(QWidget):
 
         if dialog.exec():
             return combo.currentText()
+
+    def select_module(self):
+        dialog = QDialog()
+        dialog.setWindowTitle("add Module")
+
+        dialog.buttonBox = QDialogButtonBox(QDialogButtonBox.Ok)
+        dialog.buttonBox.accepted.connect(dialog.accept)
+
+        dialog.layout = QVBoxLayout()
+        message = QLabel("Slot:")
+        dialog.layout.addWidget(message)
+        combo_slot = QComboBox(self)
+
+        message = QLabel("Module:")
+        dialog.layout.addWidget(message)
+        combo_module = QComboBox(self)
+
+        for slot in self.board.get("slots", []):
+            slot_name = slot["name"]
+            if slot_name not in self.modules:
+                combo_slot.addItem(slot_name)
+        dialog.layout.addWidget(combo_slot)
+
+        for module in self.module_names:
+            combo_module.addItem(module)
+        dialog.layout.addWidget(combo_module)
+
+        dialog.layout.addWidget(dialog.buttonBox)
+        dialog.setLayout(dialog.layout)
+
+        if dialog.exec():
+            return (combo_slot.currentText(), combo_module.currentText())
 
     def generate(self):
         config = copy.deepcopy(self.config)
