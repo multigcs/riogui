@@ -34,4 +34,5 @@ for example to build measurement and test instruments for your electronics lab (
 
 ## can i use the UART interface for LinuxCNC ?
 
-the latency is too high for these kind of real-time tasks
+no, the latency is too high for these kind of real-time tasks
+
