@@ -921,8 +921,6 @@ class WinForm(QWidget):
         self.treeview.setIndexWidget(bitem.index(), button)
         self.treeview.expand(self.model.indexFromItem(tree_modules))
 
-
-
         for module_data in self.config.get("modules", []):
             slot_name = module_data.get("slot")
             module_name = module_data.get("module")
@@ -1199,10 +1197,12 @@ class WinForm(QWidget):
         if name:
             title = f"{name} ({plugin_instance.NAME})"
 
+        help_text = plugin_instance.INFO
+
         aitem = QStandardItem()
         parent.appendRow(
             [
-                MyStandardItem(title),
+                MyStandardItem(title, help_text=help_text),
                 aitem,
             ]
         )
