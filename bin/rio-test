@@ -19,6 +19,7 @@ import riocore
 INTERVAL = 100
 
 parser = argparse.ArgumentParser()
+parser.add_argument('--debug', "-d", help="debug", default=False, action='store_true')
 parser.add_argument("config", help="config", nargs="?", type=str, default=None)
 parser.add_argument("target", help="target", nargs="?", type=str, default="192.168.10.193:2390")
 args = parser.parse_args()
@@ -43,7 +44,8 @@ class WinForm(QWidget):
         else:
             print(f"can not load: {args.config}")
             exit(1)
-        print(f"loading: {self.config_file}")
+        if args.debug:
+            print(f"loading: {self.config_file}")
 
         self.project = riocore.Project(self.config_file)
         self.project.connect(args.target)
@@ -109,13 +111,24 @@ class WinForm(QWidget):
                         self.project.signal_value_set(halname, value)
 
             txdata = self.project.txdata_get()
-            print("tx:", txdata)
+            if args.debug:
+                print("tx:", txdata)
 
             start = time.time()
             rxdata = self.project.transfare(txdata)
             stop = time.time()
-            print("rx:", rxdata)
-            print((stop - start) * 1000)
+            if args.debug:
+                print("rx:", rxdata)
+                print((stop - start) * 1000)
+
+            if not args.debug:
+                if len(rxdata) != self.project.buffer_bytes:
+                    print(f"ERROR: reveived data have wrong size: {len(rxdata)} / {self.project.buffer_bytes}")
+                    return
+                if rxdata[0] != 0x61 or rxdata[1] != 0x74 or rxdata[2] != 0x61 and rxdata[3] != 0x64:
+                    print(f"ERROR: reveived data have wrong header: 0x{rxdata[0]:X} 0x{rxdata[1]:X} 0x{rxdata[2]:X} 0x{rxdata[3]:X}")
+                    return
+
 
             self.project.rxdata_set(rxdata)
 
@@ -138,8 +151,8 @@ class WinForm(QWidget):
                         """
                     else:
                         signal[f"widget_{plugin_instance.title}"].setValue(value)
-
-            print("")
+            if args.debug:
+                print("")
         except Exception as e:
             print("ERROR", e)
             print(traceback.format_exc())
