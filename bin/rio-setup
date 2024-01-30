@@ -1215,6 +1215,8 @@ class WinForm(QWidget):
         plugin_view = parent.child(parent.rowCount() - 1)
         self.tree_add_options(plugin_view, plugin_instance, expand=expand)
         self.tree_add_pins(plugin_view, plugin_instance, expand=expand, nopins=nopins)
+        if plugin_instance.SIGNALS:
+            self.tree_add_signals(plugin_view, plugin_instance, expand=expand)
         if expand:
             self.treeview.expand(self.model.indexFromItem(plugin_view))
 
@@ -1253,6 +1255,43 @@ class WinForm(QWidget):
         )
         modifier_view = parent.child(parent.rowCount() - 1)
         self.treeview.setIndexWidget(mitem.index(), modifier_selector(self, pin_setup, modifier_id, modifier_view))
+
+    def tree_add_signals(self, parent, plugin_instance, expand=False):
+        signals_view = MyStandardItem("Signals", help_text="signal-configuration for this plugin instance")
+        parent.appendRow(signals_view)
+        if expand:
+            self.treeview.expand(self.model.indexFromItem(signals_view))
+
+        if "signals" not in plugin_instance.plugin_setup:
+            plugin_instance.plugin_setup["signals"] = {}
+        signals_setup = plugin_instance.plugin_setup["signals"]
+
+        for signal_name, signal_defaults in plugin_instance.SIGNALS.items():
+            if signal_name not in signals_setup:
+                signals_setup[signal_name] = {}
+            help_text = f"{signal_name} config"
+
+            signal_view = MyStandardItem(signal_name, help_text="signal-configuration for this plugin instance")
+            signals_view.appendRow(signal_view)
+            if expand:
+                self.treeview.expand(self.model.indexFromItem(signal_view))
+
+            for option, option_setup in {"net": {"type": str}, "function": {"type": str}}.items():
+                help_text = f"{option} config"
+                citem = QStandardItem()
+                signal_view.appendRow(
+                    [
+                        MyStandardItem(option, help_text=help_text),
+                        citem,
+                    ]
+                )
+                signal_option_view = signal_view.child(signal_view.rowCount() - 1)
+                # cb = partial(self.callback_plugin_name, parent, plugin_instance)
+                cb = None
+                self.treeview.setIndexWidget(citem.index(), self.edit_item(signals_setup[signal_name], option, option_setup, cb=cb))
+                if expand:
+                    self.treeview.expand(self.model.indexFromItem(signal_option_view))
+
 
     def tree_add_pins(self, parent, plugin_instance, expand=False, nopins=False):
         pins_view = MyStandardItem("Pins", help_text="pin-configuration for this plugin instance")
