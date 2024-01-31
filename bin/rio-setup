@@ -1215,8 +1215,13 @@ class WinForm(QWidget):
         plugin_view = parent.child(parent.rowCount() - 1)
         self.tree_add_options(plugin_view, plugin_instance, expand=expand)
         self.tree_add_pins(plugin_view, plugin_instance, expand=expand, nopins=nopins)
-        if plugin_instance.SIGNALS:
-            self.tree_add_signals(plugin_view, plugin_instance, expand=expand)
+        if plugin_instance.TYPE == "joint":
+            self.tree_add_joint(plugin_view, plugin_instance, expand=expand)
+            if plugin_instance.SIGNALS and not plugin_instance.plugin_setup.get("is_joint", True):
+                self.tree_add_signals(plugin_view, plugin_instance, expand=expand)
+        else:
+            if plugin_instance.SIGNALS:
+                self.tree_add_signals(plugin_view, plugin_instance, expand=expand)
         if expand:
             self.treeview.expand(self.model.indexFromItem(plugin_view))
 
@@ -1291,6 +1296,84 @@ class WinForm(QWidget):
                 self.treeview.setIndexWidget(citem.index(), self.edit_item(signals_setup[signal_name], option, option_setup, cb=cb))
                 if expand:
                     self.treeview.expand(self.model.indexFromItem(signal_option_view))
+
+    def tree_add_joint(self, parent, plugin_instance, expand=False):
+        joint_view = MyStandardItem("Joint", help_text="joint-configuration for this plugin instance")
+        parent.appendRow(joint_view)
+        if expand:
+            self.treeview.expand(self.model.indexFromItem(joint_view))
+
+        if "joint" not in plugin_instance.plugin_setup:
+            plugin_instance.plugin_setup["joint"] = {}
+        joints_setup = plugin_instance.plugin_setup["joint"]
+
+        joint_options = {
+            "scale": {
+                "type": float,
+            },
+            "type": {
+                "type": "select",
+                "options": ["LINEAR", "ROTARY"],
+            },
+            "home": {
+                "type": float,
+            },
+            "home_sequence": {
+                "type": int,
+            },
+            "min_limit": {
+                "type": float,
+            },
+            "max_limit": {
+                "type": float,
+            },
+            "max_velocity": {
+                "type": float,
+            },
+            "max_acceleration": {
+                "type": float,
+            },
+            "stepgen_maxaccel": {
+                "type": float,
+            },
+            "home_search_vel": {
+                "type": float,
+            },
+            "home_latch_vel": {
+                "type": float,
+            },
+            "home_final_vel": {
+                "type": float,
+            },
+            "home_offset": {
+                "type": float,
+            },
+            "home_ignore_limits": {
+                "type": "select",
+                "options": ["YES", "NO"],
+            },
+            "home_use_index": {
+                "type": "select",
+                "options": ["YES", "NO"],
+            },
+
+        }
+
+        for option, option_setup in joint_options.items():
+            help_text = f"{option} config"
+            citem = QStandardItem()
+            joint_view.appendRow(
+                [
+                    MyStandardItem(option, help_text=help_text),
+                    citem,
+                ]
+            )
+            joint_option_view = joint_view.child(joint_view.rowCount() - 1)
+            # cb = partial(self.callback_plugin_name, parent, plugin_instance)
+            cb = None
+            self.treeview.setIndexWidget(citem.index(), self.edit_item(joints_setup, option, option_setup, cb=cb))
+            if expand:
+                self.treeview.expand(self.model.indexFromItem(joint_option_view))
 
 
     def tree_add_pins(self, parent, plugin_instance, expand=False, nopins=False):
