@@ -1291,11 +1291,46 @@ class WinForm(QWidget):
                     ]
                 )
                 signal_option_view = signal_view.child(signal_view.rowCount() - 1)
-                # cb = partial(self.callback_plugin_name, parent, plugin_instance)
                 cb = None
                 self.treeview.setIndexWidget(citem.index(), self.edit_item(signals_setup[signal_name], option, option_setup, cb=cb))
                 if expand:
                     self.treeview.expand(self.model.indexFromItem(signal_option_view))
+
+
+            display_view = MyStandardItem("Display", help_text="display-configuration for this signal")
+            signal_view.appendRow(display_view)
+            if expand:
+                self.treeview.expand(self.model.indexFromItem(display_view))
+
+            if signal_defaults["direction"] == "input" or signals_setup[signal_name].get("net"):
+                if signal_defaults.get("bool"):
+                    type_options = ["none", "led", "rectled"]
+                else:
+                    type_options = ["none", "number", "bar", "meter"]
+            else:
+                if signal_defaults.get("bool"):
+                    type_options = ["none", "checkbutton", "button"]
+                else:
+                    type_options = ["none", "scale", "spinbox", "dial", "jogwheel"]
+
+            if "display" not in signals_setup[signal_name]:
+                signals_setup[signal_name]["display"] = {}
+
+            for option, option_setup in {"title": {"type": str}, "section": {"type": str}, "type": {"type": "select", "options": type_options}}.items():
+                help_text = f"{option} config"
+                citem = QStandardItem()
+                display_view.appendRow(
+                    [
+                        MyStandardItem(option, help_text=help_text),
+                        citem,
+                    ]
+                )
+                signal_option_view = display_view.child(display_view.rowCount() - 1)
+                cb = None
+                self.treeview.setIndexWidget(citem.index(), self.edit_item(signals_setup[signal_name]["display"], option, option_setup, cb=cb))
+                if expand:
+                    self.treeview.expand(self.model.indexFromItem(signal_option_view))
+
 
     def tree_add_joint(self, parent, plugin_instance, expand=False):
         joint_view = MyStandardItem("Joint", help_text="joint-configuration for this plugin instance")
