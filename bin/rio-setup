@@ -1234,7 +1234,7 @@ class WinForm(QWidget):
             unit = option_defaults.get("unit")
             if unit:
                 title = f"{title} ({unit})"
-            help_text = option_defaults.get("help", title)
+            help_text = option_defaults.get("description", title)
             aitem = QStandardItem()
             parent.appendRow(
                 [
