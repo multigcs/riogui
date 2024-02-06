@@ -693,17 +693,10 @@ class WinForm(QWidget):
                     mportsl.append(f"<{pin_setup['pin_mapped']}>{pin_setup['pin_mapped']}")
                     mportsr.append(f"<{pin}>{pin}")
                     pports.append(f"<{pin_name}>{pin_name}")
-
                     if pin_defaults["direction"] == "input":
-
                         gAll.edge(f"{fpga_name}:{pin}", f"{module_name}:{pin_setup['pin_mapped']}", dir="back", color="green", fontcolor="white")
-                        # gAll.edge(f"{module_name}:{pin}", f"{title}:{pin_name}", dir="back", label=modlabel, color="yellow", fontcolor="white")
-
                     else:
                         gAll.edge(f"{fpga_name}:{pin}", f"{module_name}:{pin_setup['pin_mapped']}", color="red", fontcolor="white")
-                        # gAll.edge(f"{module_name}:{pin}", f"{title}:{pin_name}", label=modlabel, color="red", fontcolor="white")
-
-                    sportsr.append(f"<{pin}>{pin}")
 
                 net = plugin_instance.plugin_setup.get("net")
                 if net:
