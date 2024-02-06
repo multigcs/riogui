@@ -594,14 +594,27 @@ class WinForm(QWidget):
                     fillcolor="lightpink",
                 )
 
+            signalports = []
             for signal_name, signal_config in plugin_instance.plugin_setup.get("signals", {}).items():
+                net = signal_config.get("net")
                 function = signal_config.get("function")
+                signalports.append(f"<{signal_name}>{signal_name}")
                 if function:
-                    gAll.edge(f"{title}", f"{function}", dir="none", color="white", fontcolor="white")
+                    gAll.edge(f"{title}:{signal_name}", f"{function}", dir="none", color="white", fontcolor="white")
                     gAll.node(
                         function,
                         shape="record",
                         label=function,
+                        fontsize="11pt",
+                        style="rounded, filled",
+                        fillcolor="lightpink",
+                    )
+                if net:
+                    gAll.edge(f"{title}:{signal_name}", f"{net}", dir="none", color="white", fontcolor="white")
+                    gAll.node(
+                        net,
+                        shape="record",
+                        label=net,
                         fontsize="11pt",
                         style="rounded, filled",
                         fillcolor="lightpink",
@@ -618,6 +631,8 @@ class WinForm(QWidget):
 
                 label = f"{{ {{{' | '.join(pports)}}} | {title} | {{{' | '.join(eports)}}} }}"
 
+            elif signalports:
+                label = f"{{ {{{' | '.join(pports)}}} | {title} | {{{' | '.join(signalports)}}} }}"
             else:
                 label = f"{{ {{{' | '.join(pports)}}} | {title} }}"
 
@@ -710,10 +725,13 @@ class WinForm(QWidget):
                         fillcolor="lightpink",
                     )
 
+                signalports = []
                 for signal_name, signal_config in plugin_instance.plugin_setup.get("signals", {}).items():
+                    net = signal_config.get("net")
                     function = signal_config.get("function")
+                    signalports.append(f"<{signal_name}>{signal_name}")
                     if function:
-                        gAll.edge(f"{title}", f"{function}", dir="none", color="white", fontcolor="white")
+                        gAll.edge(f"{title}:{signal_name}", f"{function}", dir="none", color="white", fontcolor="white")
                         gAll.node(
                             function,
                             shape="record",
@@ -722,8 +740,21 @@ class WinForm(QWidget):
                             style="rounded, filled",
                             fillcolor="lightpink",
                         )
+                    if net:
+                        gAll.edge(f"{title}:{signal_name}", f"{net}", dir="none", color="white", fontcolor="white")
+                        gAll.node(
+                            net,
+                            shape="record",
+                            label=net,
+                            fontsize="11pt",
+                            style="rounded, filled",
+                            fillcolor="lightpink",
+                        )
 
-                label = f"{{ {{{' | '.join(pports)}}} | {title} }}"
+                if signalports:
+                    label = f"{{ {{{' | '.join(pports)}}} | {title} | {{{' | '.join(signalports)}}} }}"
+                else:
+                    label = f"{{ {{{' | '.join(pports)}}} | {title} }}"
                 gAll.node(
                     title,
                     shape="record",
