@@ -584,6 +584,7 @@ class WinForm(QWidget):
 
             net = plugin_instance.plugin_setup.get("net")
             if net:
+                print(f"WARNING: net moved into signals: {title} / {net}")
                 gAll.edge(f"{title}", f"{net}", dir="none", color="white", fontcolor="white")
                 gAll.node(
                     net,
@@ -705,8 +706,6 @@ class WinForm(QWidget):
 
                     gAll.edge(f"{con_dev}:{con_pin}", f"{title}:{pin_name}", dir=arrow_dir, color=color)
                     pports.append(f"<{pin_name}>{pin_name}")
-
-
 
                 net = plugin_instance.plugin_setup.get("net")
                 if net:
