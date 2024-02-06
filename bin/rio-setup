@@ -598,9 +598,11 @@ class WinForm(QWidget):
             for signal_name, signal_config in plugin_instance.plugin_setup.get("signals", {}).items():
                 net = signal_config.get("net")
                 function = signal_config.get("function")
-                signalports.append(f"<{signal_name}>{signal_name}")
+                signalports.append(f"<signal_{signal_name}>{signal_name}")
+                signal_direction = plugin_instance.SIGNALS.get(signal_name, {}).get("direction")
+                direction_mapping = {"input": "normal", "output": "back", "inout": "both"}
                 if function:
-                    gAll.edge(f"{title}:{signal_name}", f"{function}", dir="none", color="white", fontcolor="white")
+                    gAll.edge(f"{title}:signal_{signal_name}", f"{function}", dir=direction_mapping.get(signal_direction, "none"), color="white", fontcolor="white")
                     gAll.node(
                         function,
                         shape="record",
@@ -610,7 +612,7 @@ class WinForm(QWidget):
                         fillcolor="lightpink",
                     )
                 if net:
-                    gAll.edge(f"{title}:{signal_name}", f"{net}", dir="none", color="white", fontcolor="white")
+                    gAll.edge(f"{title}:signal_{signal_name}", f"{net}", dir=direction_mapping.get(signal_direction, "none"), color="white", fontcolor="white")
                     gAll.node(
                         net,
                         shape="record",
@@ -729,9 +731,11 @@ class WinForm(QWidget):
                 for signal_name, signal_config in plugin_instance.plugin_setup.get("signals", {}).items():
                     net = signal_config.get("net")
                     function = signal_config.get("function")
-                    signalports.append(f"<{signal_name}>{signal_name}")
+                    signalports.append(f"<signal_{signal_name}>{signal_name}")
+                    signal_direction = plugin_instance.SIGNALS.get(signal_name, {}).get("direction")
+                    direction_mapping = {"input": "forward", "output": "back", "inout": "both"}
                     if function:
-                        gAll.edge(f"{title}:{signal_name}", f"{function}", dir="none", color="white", fontcolor="white")
+                        gAll.edge(f"{title}:signal_{signal_name}", f"{function}", dir=direction_mapping.get(signal_direction, "none"), color="white", fontcolor="white")
                         gAll.node(
                             function,
                             shape="record",
@@ -741,7 +745,7 @@ class WinForm(QWidget):
                             fillcolor="lightpink",
                         )
                     if net:
-                        gAll.edge(f"{title}:{signal_name}", f"{net}", dir="none", color="white", fontcolor="white")
+                        gAll.edge(f"{title}:signal_{signal_name}", f"{net}", dir=direction_mapping.get(signal_direction, "none"), color="white", fontcolor="white")
                         gAll.node(
                             net,
                             shape="record",
