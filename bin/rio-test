@@ -16,10 +16,10 @@ from PyQt5.QtWidgets import QApplication, QCheckBox, QGridLayout, QLabel, QListW
 
 import riocore
 
-INTERVAL = 100
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--debug', "-d", help="debug", default=False, action='store_true')
+parser.add_argument('--interval', "-i", help="interval", type=int, default=50)
 parser.add_argument("config", help="config", nargs="?", type=str, default=None)
 parser.add_argument("target", help="target", nargs="?", type=str, default="192.168.10.193:2390")
 args = parser.parse_args()
@@ -91,7 +91,7 @@ class WinForm(QWidget):
 
         self.timer = QTimer()
         self.timer.timeout.connect(self.runTimer)
-        self.timer.start(INTERVAL)
+        self.timer.start(args.interval)
 
     def slider_reset(self, widget):
         widget.setValue(0)
