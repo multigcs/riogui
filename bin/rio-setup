@@ -1103,7 +1103,8 @@ class WinForm(QWidget):
             infotext = plugins.plugin_instances[0].INFO
             info.setText(infotext)
             descriptiontext = plugins.plugin_instances[0].DESCRIPTION
-            description.setText(descriptiontext)
+            description.clear()
+            description.insertPlainText(descriptiontext)
 
         plugin_list = self.plugins.list()
         plugins = riocore.Plugins()
@@ -1113,6 +1114,9 @@ class WinForm(QWidget):
 
         dialog = QDialog()
         dialog.setWindowTitle("add Plugin")
+        dialog.setFixedWidth(500)
+        dialog.setFixedHeight(400)
+
 
         dialog.buttonBox = QDialogButtonBox(QDialogButtonBox.Ok)
         dialog.buttonBox.accepted.connect(dialog.accept)
@@ -1121,16 +1125,28 @@ class WinForm(QWidget):
         message = QLabel("Plugin-Type:")
         dialog.layout.addWidget(message)
 
+
+        hlayout = QHBoxLayout()
         combo = QComboBox(self)
         for plugin in plugin_list:
             combo.addItem(plugin["name"])
-        dialog.layout.addWidget(combo)
+        hlayout.addWidget(combo)
 
+
+        vlayout = QVBoxLayout()
         info = QLabel(infotext)
-        dialog.layout.addWidget(info)
+        vlayout.addWidget(info)
 
-        description = QLabel(descriptiontext)
-        dialog.layout.addWidget(description)
+        description = QPlainTextEdit()
+        description.clear()
+        description.insertPlainText(descriptiontext)
+
+        vlayout.addWidget(description)
+
+        hlayout.addLayout(vlayout)
+
+        dialog.layout.addLayout(hlayout)
+
 
         cb = partial(change, combo, info, description)
         combo.activated.connect(cb)
