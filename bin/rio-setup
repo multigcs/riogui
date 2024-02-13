@@ -1094,6 +1094,23 @@ class WinForm(QWidget):
         # self.display()
 
     def select_plugin(self):
+
+        def change(combo, info, description, selected):
+            plugin_name = combo.currentText()
+            plugin_list = self.plugins.list()
+            plugins = riocore.Plugins()
+            plugins.load_plugins({"plugins": [{"type": plugin_name}]})
+            infotext = plugins.plugin_instances[0].INFO
+            info.setText(infotext)
+            descriptiontext = plugins.plugin_instances[0].DESCRIPTION
+            description.setText(descriptiontext)
+
+        plugin_list = self.plugins.list()
+        plugins = riocore.Plugins()
+        plugins.load_plugins({"plugins": [{"type": plugin_list[0]["name"]}]})
+        infotext = plugins.plugin_instances[0].INFO
+        descriptiontext = plugins.plugin_instances[0].DESCRIPTION
+
         dialog = QDialog()
         dialog.setWindowTitle("add Plugin")
 
@@ -1105,9 +1122,18 @@ class WinForm(QWidget):
         dialog.layout.addWidget(message)
 
         combo = QComboBox(self)
-        for plugin in self.plugins.list():
+        for plugin in plugin_list:
             combo.addItem(plugin["name"])
         dialog.layout.addWidget(combo)
+
+        info = QLabel(infotext)
+        dialog.layout.addWidget(info)
+
+        description = QLabel(descriptiontext)
+        dialog.layout.addWidget(description)
+
+        cb = partial(change, combo, info, description)
+        combo.activated.connect(cb)
 
         dialog.layout.addWidget(dialog.buttonBox)
         dialog.setLayout(dialog.layout)
