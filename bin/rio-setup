@@ -1117,21 +1117,22 @@ class WinForm(QWidget):
         dialog.setFixedWidth(500)
         dialog.setFixedHeight(400)
 
-
         dialog.buttonBox = QDialogButtonBox(QDialogButtonBox.Ok)
         dialog.buttonBox.accepted.connect(dialog.accept)
 
         dialog.layout = QVBoxLayout()
-        message = QLabel("Plugin-Type:")
-        dialog.layout.addWidget(message)
-
 
         hlayout = QHBoxLayout()
+
+        vlayout_left = QVBoxLayout()
+
+        message = QLabel("Plugin-Type:")
+        vlayout_left.addWidget(message)
         combo = QComboBox(self)
         for plugin in plugin_list:
             combo.addItem(plugin["name"])
-        hlayout.addWidget(combo)
-
+        vlayout_left.addWidget(combo)
+        vlayout_left.addStretch()
 
         vlayout = QVBoxLayout()
         info = QLabel(infotext)
@@ -1143,10 +1144,10 @@ class WinForm(QWidget):
 
         vlayout.addWidget(description)
 
+        hlayout.addLayout(vlayout_left)
         hlayout.addLayout(vlayout)
 
         dialog.layout.addLayout(hlayout)
-
 
         cb = partial(change, combo, info, description)
         combo.activated.connect(cb)
