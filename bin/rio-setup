@@ -563,11 +563,11 @@ class WinForm(QWidget):
                         modifier_type = modifier["type"]
                         modifier_chain.append(modifier_type)
                     modifier_label = f"{{ <l> | {' | '.join(modifier_chain)} | <r> }}"
-                    gAll.edge(f"{con_dev}:{con_pin}", f"{name}_{modifier_type}_{modifier_num}:l", dir=arrow_dir, color=color)
-                    con_dev = f"{name}_{modifier_type}_{modifier_num}"
+                    gAll.edge(f"{con_dev}:{con_pin}", f"{name}_{pin_name}_{modifier_type}_{modifier_num}:l", dir=arrow_dir, color=color)
+                    con_dev = f"{name}_{pin_name}_{modifier_type}_{modifier_num}"
                     con_pin = "r"
                     gAll.node(
-                        f"{name}_{modifier_type}_{modifier_num}",
+                        f"{name}_{pin_name}_{modifier_type}_{modifier_num}",
                         shape="record",
                         label=modifier_label,
                         fontsize="11pt",
@@ -692,11 +692,11 @@ class WinForm(QWidget):
                             modifier_type = modifier["type"]
                             modifier_chain.append(modifier_type)
                         modifier_label = f"{{ <l> | {' | '.join(modifier_chain)} | <r> }}"
-                        gAll.edge(f"{con_dev}:{con_pin}", f"{name}_{modifier_type}_{modifier_num}:l", dir=arrow_dir, color=color)
-                        con_dev = f"{name}_{modifier_type}_{modifier_num}"
+                        gAll.edge(f"{con_dev}:{con_pin}", f"{name}_{pin_name}_{modifier_type}_{modifier_num}:l", dir=arrow_dir, color=color)
+                        con_dev = f"{name}_{pin_name}_{modifier_type}_{modifier_num}"
                         con_pin = "r"
                         gAll.node(
-                            f"{name}_{modifier_type}_{modifier_num}",
+                            f"{name}_{pin_name}_{modifier_type}_{modifier_num}",
                             shape="record",
                             label=modifier_label,
                             fontsize="11pt",
