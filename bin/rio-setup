@@ -916,7 +916,7 @@ class WinForm(QWidget):
             "name": {"type": str},
             "description": {"type": str},
             "boardcfg": {"type": "select", "options": self.boards},
-            "transport": {"type": "select", "options": self.interfaces, "default": "UDP"},
+            "protocol": {"type": "select", "options": self.interfaces, "default": "UDP"},
             "axis": {"type": int, "min": 0, "max": 9, "default": 3},
         }.items():
             aitem = QStandardItem()
