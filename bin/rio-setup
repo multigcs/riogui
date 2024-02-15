@@ -6,6 +6,7 @@ import argparse
 import os
 import copy
 import glob
+import importlib
 import json
 import sys
 import time
@@ -1093,6 +1094,18 @@ class WinForm(QWidget):
         # self.load_tree()
         # self.display()
 
+    def config_plugin(self, plugin_instance, plugin_id, widget):
+        print("loading...", plugin_instance.NAME, self.config["plugins"][plugin_id])
+
+        if os.path.isfile(f"{riocore_path}/plugins/{plugin_instance.NAME}/config.py"):
+            plugin_config = importlib.import_module(".config", f"riocore.plugins.{plugin_instance.NAME}")
+            config_box = plugin_config.config(plugin_instance)
+            config_box.run()
+            print("done")
+        self.config_load()
+        self.load_tree()
+        self.display()
+
     def select_plugin(self):
 
         def change(combo, info, description, selected):
@@ -1260,11 +1273,25 @@ class WinForm(QWidget):
                 aitem,
             ]
         )
-        button = QPushButton("delete")
+
+        buttons_layout = QHBoxLayout()
+        buttons_layout.setContentsMargins(0, 0, 0, 0)
+        buttons_widget = QWidget()
+        buttons_widget.setLayout(buttons_layout)
+
+        button_delete = QPushButton("delete")
         cb = partial(self.del_plugin, plugin_instance, plugin_instance.plugin_id)
-        button.clicked.connect(cb)
-        button.setMaximumSize(button.sizeHint())
-        self.treeview.setIndexWidget(aitem.index(), button)
+        button_delete.clicked.connect(cb)
+        button_delete.setMaximumSize(button_delete.sizeHint())
+        buttons_layout.addWidget(button_delete)
+        if plugin_instance.PLUGIN_CONFIG:
+            button_config = QPushButton("config")
+            cb = partial(self.config_plugin, plugin_instance, plugin_instance.plugin_id)
+            button_config.clicked.connect(cb)
+            button_config.setMaximumSize(button_config.sizeHint())
+            buttons_layout.addWidget(button_config)
+        buttons_layout.addStretch()
+        self.treeview.setIndexWidget(aitem.index(), buttons_widget)
 
         plugin_view = parent.child(parent.rowCount() - 1)
         self.tree_add_options(plugin_view, plugin_instance, expand=expand)
