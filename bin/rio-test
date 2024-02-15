@@ -147,12 +147,8 @@ class WinForm(QWidget):
                 for halname, signal in haldata.get("input", {}).items():
                     value = signal["value"]
                     value_format = signal.get("format", "d")
-                    value_scale = signal.get("scale")
                     value_unit = signal.get("unit", "")
-                    if value_scale:
-                        value_str = f"%{value_format}" % (value * value_scale,)
-                    else:
-                        value_str = f"%{value_format}" % (value,)
+                    value_str = f"%{value_format}" % (value,)
                     if signal.get("bool"):
                         signal[f"widget_{plugin_instance.title}"].setChecked(value)
                     elif signal.get("direction") == "input":
