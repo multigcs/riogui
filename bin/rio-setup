@@ -1095,13 +1095,10 @@ class WinForm(QWidget):
         # self.display()
 
     def config_plugin(self, plugin_instance, plugin_id, widget):
-        print("loading...", plugin_instance.NAME, self.config["plugins"][plugin_id])
-
         if os.path.isfile(f"{riocore_path}/plugins/{plugin_instance.NAME}/config.py"):
             plugin_config = importlib.import_module(".config", f"riocore.plugins.{plugin_instance.NAME}")
             config_box = plugin_config.config(plugin_instance)
             config_box.run()
-            print("done")
         self.config_load()
         self.load_tree()
         self.display()
