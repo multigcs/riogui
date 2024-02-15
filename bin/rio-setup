@@ -331,6 +331,10 @@ class WinForm(QWidget):
         button.clicked.connect(self.config_load)
         button_layout.addWidget(button)
 
+        button = QPushButton("test-gui")
+        button.clicked.connect(self.testgui)
+        button_layout.addWidget(button)
+
         row += 1
 
         self.json_load()
@@ -363,6 +367,13 @@ class WinForm(QWidget):
             return f"{riocore_path}/{path}"
         print(f"can not find path: {path}")
         exit(1)
+
+    def testgui(self):
+        print("starting testgui..", f"{os.path.dirname(__file__)}/rio-test")
+        filename = f"{self.config_file}.test-gui-temp.json"
+        self.save_config_ass(filename)
+        testgui_path = f"{os.path.dirname(__file__)}/rio-test"
+        os.system(f"({testgui_path} {filename} ; rm {filename}) &")
 
     def config_load(self):
         self.info_widget.setText(self.config_file)
@@ -1236,6 +1247,13 @@ class WinForm(QWidget):
 
     def save_config(self, widget):
         print("save...")
+        file_dialog = QFileDialog(self)
+        file_dialog.setNameFilters(["json (*.json)"])
+        name = file_dialog.getSaveFileName(self, "Save File", self.config_file, "json (*.json)")
+        if name[0]:
+            self.save_config_ass(name[0])
+
+    def save_config_ass(self, filename):
         config = copy.deepcopy(self.config)
         # cleanup
         for module in config.get("modules", []):
@@ -1248,12 +1266,7 @@ class WinForm(QWidget):
             for name, setup in module.get("setup", {}).items():
                 for pin, pin_setup in setup.get("pins", {}).items():
                     del pin_setup["pin_mapped"]
-
-        file_dialog = QFileDialog(self)
-        file_dialog.setNameFilters(["json (*.json)"])
-        name = file_dialog.getSaveFileName(self, "Save File", self.config_file, "json (*.json)")
-        if name[0]:
-            open(name[0], "w").write(json.dumps(config, indent=4))
+        open(filename, "w").write(json.dumps(config, indent=4))
 
     def tree_add_plugin(self, parent, plugin_instance, nopins=False, expand=False):
         name = plugin_instance.plugin_setup.get("name")

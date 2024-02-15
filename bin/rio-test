@@ -4,6 +4,7 @@
 
 import argparse
 import os
+import glob
 import sys
 import time
 import traceback
@@ -12,7 +13,7 @@ from struct import *
 
 from PyQt5 import QtGui
 from PyQt5.QtCore import QDateTime, Qt, QTimer
-from PyQt5.QtWidgets import QApplication, QCheckBox, QGridLayout, QLabel, QListWidget, QPushButton, QSlider, QWidget
+from PyQt5.QtWidgets import QApplication, QCheckBox, QGridLayout, QLabel, QListWidget, QPushButton, QSlider, QWidget, QDialogButtonBox, QDialog, QVBoxLayout, QHBoxLayout, QComboBox, QLineEdit
 
 import riocore
 
@@ -21,7 +22,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--debug', "-d", help="debug", default=False, action='store_true')
 parser.add_argument('--interval', "-i", help="interval", type=int, default=50)
 parser.add_argument("config", help="config", nargs="?", type=str, default=None)
-parser.add_argument("target", help="target", nargs="?", type=str, default="192.168.10.193:2390")
+parser.add_argument("target", help="target", nargs="?", type=str, default="")
 args = parser.parse_args()
 
 riocore_path = os.path.dirname(riocore.__file__)
@@ -47,8 +48,16 @@ class WinForm(QWidget):
         if args.debug:
             print(f"loading: {self.config_file}")
 
+
         self.project = riocore.Project(self.config_file)
-        self.project.connect(args.target)
+
+        target = args.target
+        if not args.target:
+            target = self.target_select()
+        if not target:
+            sys.exit(0)
+
+        self.project.connect(target)
 
         self.haldata = self.project.haldata()
 
@@ -92,6 +101,89 @@ class WinForm(QWidget):
         self.timer = QTimer()
         self.timer.timeout.connect(self.runTimer)
         self.timer.start(args.interval)
+
+    def target_select(self):
+
+        def target_check(item):
+            target = device.currentText()
+            is_udp = target == "UDP"
+            udp_ip.setEnabled(is_udp)
+            udp_port.setEnabled(is_udp)
+
+        dialog = QDialog()
+        dialog.setWindowTitle("select target")
+        dialog.setFixedWidth(500)
+        dialog.setFixedHeight(400)
+
+        dialog.buttonBox = QDialogButtonBox(QDialogButtonBox.Ok)
+        dialog.buttonBox.accepted.connect(dialog.accept)
+
+        dialog.layout = QVBoxLayout()
+        hlayout = QHBoxLayout()
+        vlayout_left = QVBoxLayout()
+
+        message = QLabel("Device:")
+        vlayout_left.addWidget(message)
+        device = QComboBox(self)
+        device.addItem("UDP")
+        device.addItem("SPI")
+        for path in glob.glob("/dev/ttyUSB*"):
+            device.addItem(path)
+        for path in glob.glob("/dev/ttyACM*"):
+            device.addItem(path)
+        for path in glob.glob("/dev/serial*"):
+            device.addItem(path)
+        device.activated.connect(target_check)
+
+        ip = "192.168.10.193"
+        port = 2390
+        protocol = self.project.config["jdata"].get("protocol")
+        if protocol:
+            for n in range(0, device.count()):
+                if device.itemText(n) == protocol:
+                    device.setCurrentIndex(n)
+                    break
+                elif protocol == "UART" and device.itemText(n).startswith("/dev/tty"):
+                    device.setCurrentIndex(n)
+                    break
+
+            if protocol == "UDP":
+                for plugin_instance in self.project.plugin_instances:
+                    if plugin_instance.TYPE == "interface":
+                        if "ip" in plugin_instance.plugin_setup:
+                            ip = plugin_instance.plugin_setup["ip"]
+                        if "port" in plugin_instance.plugin_setup:
+                            port = plugin_instance.plugin_setup["port"]
+
+
+
+        vlayout_left.addWidget(device)
+        vlayout_left.addStretch()
+
+        vlayout_left.addWidget(QLabel("IP"))
+        udp_ip = QLineEdit()
+        udp_ip.setText(ip)
+        vlayout_left.addWidget(udp_ip)
+        vlayout_left.addWidget(QLabel("Port"))
+        udp_port = QLineEdit()
+        udp_port.setText(str(port))
+        vlayout_left.addWidget(udp_port)
+
+        vlayout_left.addStretch()
+        hlayout.addLayout(vlayout_left)
+        dialog.layout.addLayout(hlayout)
+        dialog.layout.addWidget(dialog.buttonBox)
+        dialog.setLayout(dialog.layout)
+        target_check(0)
+
+        if dialog.exec():
+            target = device.currentText()
+            if target == "UDP":
+                target = f"{udp_ip.text()}:{udp_port.text()}"
+            return target
+        else:
+            return None
+
 
     def slider_reset(self, widget):
         widget.setValue(0)
