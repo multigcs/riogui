@@ -251,8 +251,8 @@ class WinForm(QWidget):
 
         layout.addWidget(self.treeview, row, 0)
 
-        tabwidget = QTabWidget()
-        layout.addWidget(tabwidget, row, 1)
+        self.tabwidget = QTabWidget()
+        layout.addWidget(self.tabwidget, row, 1)
 
         self.pin_table = QTableWidget()
         self.pin_table.setColumnCount(6)
@@ -268,24 +268,25 @@ class WinForm(QWidget):
         scroll = QScrollArea()
         scroll.setWidget(self.imagew)
         scroll.setWidgetResizable(True)
-        tabwidget.addTab(scroll, "Flow")
-        tabwidget.addTab(self.pin_table, "Pintable")
+        self.tabwidget.addTab(scroll, "Flow")
+        self.tabwidget.addTab(self.pin_table, "Pintable")
 
         self.jsonpreview = QPlainTextEdit()
         self.jsonpreview.clear()
         self.jsonpreview.insertPlainText("...")
         self.jsonpreview.verticalScrollBar().setValue(0)
-        tabwidget.addTab(self.jsonpreview, "Json-Preview")
+        self.tabwidget.addTab(self.jsonpreview, "Json-Preview")
 
-        gateware_tabwidget = QTabWidget()
-        tabwidget.addTab(gateware_tabwidget, "Gateware")
+        self.gateware_tabwidget = QTabWidget()
+        self.tabwidget.addTab(self.gateware_tabwidget, "Gateware")
 
-        linuxcnc_tabwidget = QTabWidget()
-        tabwidget.addTab(linuxcnc_tabwidget, "LinuxCNC")
+        self.linuxcnc_tabwidget = QTabWidget()
+        self.tabwidget.addTab(self.linuxcnc_tabwidget, "LinuxCNC")
 
         self.gateware = {
             "rio.v": QPlainTextEdit(),
             "Makefile": QPlainTextEdit(),
+            "Compile-Output": QPlainTextEdit(),
         }
         self.linuxcnc = {
             "rio.ini": QPlainTextEdit(),
@@ -299,12 +300,12 @@ class WinForm(QWidget):
             widget.clear()
             widget.insertPlainText("Please press generate ...")
             widget.verticalScrollBar().setValue(0)
-            gateware_tabwidget.addTab(widget, filename)
+            self.gateware_tabwidget.addTab(widget, filename)
         for filename, widget in self.linuxcnc.items():
             widget.clear()
             widget.insertPlainText("Please press generate ...")
             widget.verticalScrollBar().setValue(0)
-            linuxcnc_tabwidget.addTab(widget, filename)
+            self.linuxcnc_tabwidget.addTab(widget, filename)
 
         row += 1
 
@@ -321,6 +322,10 @@ class WinForm(QWidget):
 
         button = QPushButton("Generate")
         button.clicked.connect(self.generate)
+        button_layout.addWidget(button)
+
+        button = QPushButton("Compile")
+        button.clicked.connect(self.compile)
         button_layout.addWidget(button)
 
         button = QPushButton("reload tree")
@@ -1211,6 +1216,20 @@ class WinForm(QWidget):
         if dialog.exec():
             return (combo_slot.currentText(), combo_module.currentText())
 
+    def compile(self):
+        self.tabwidget.setCurrentWidget(self.gateware_tabwidget)
+        self.gateware_tabwidget.setCurrentWidget(self.gateware["Compile-Output"])
+
+        widget = self.gateware["Compile-Output"]
+        config_name = self.config.get("name")
+
+        os.system(f"(cd Output/{config_name}/Gateware/ ; xterm -e 'make clean all 2>&1 | tee compile.log')")
+        logdata = open(f"Output/{config_name}/Gateware/compile.log", "r").read()
+
+        widget.clear()
+        widget.insertPlainText(logdata)
+        widget.verticalScrollBar().setValue(0)
+
     def generate(self):
         config = copy.deepcopy(self.config)
         # cleanup
@@ -1231,10 +1250,11 @@ class WinForm(QWidget):
         config_name = self.config.get("name")
 
         for filename, widget in self.gateware.items():
-            file_content = open(f"Output/{config_name}/Gateware/{filename}", "r").read()
-            widget.clear()
-            widget.insertPlainText(file_content)
-            widget.verticalScrollBar().setValue(0)
+            if filename != "Compile-Output":
+                file_content = open(f"Output/{config_name}/Gateware/{filename}", "r").read()
+                widget.clear()
+                widget.insertPlainText(file_content)
+                widget.verticalScrollBar().setValue(0)
 
         for filename, widget in self.linuxcnc.items():
             if filename == "rio.c":
