@@ -573,9 +573,15 @@ class WinForm(QWidget):
         self.display()
 
     def display(self):
-        self.overview_load()
-        self.pin_table_load()
-        self.json_preview()
+        try:
+            self.overview_load()
+            self.pin_table_load()
+            self.json_preview()
+            self.info_widget.setText(self.config_file)
+        except Exception as error:
+            print(f"ERROR: {error}")
+            self.info_widget.setText(f"ERROR: {error}")
+
 
     def json_preview(self):
         config = copy.deepcopy(self.config)
