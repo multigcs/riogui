@@ -108,6 +108,11 @@ class edit_float(QDoubleSpinBox):
         if key in obj:
             self.setValue(float(obj[key]))
         self.editingFinished.connect(self.change)
+        self.setFocusPolicy(Qt.StrongFocus)
+
+    def wheelEvent(self, *args, **kwargs):
+        if self.hasFocus():
+            return QSpinBox.wheelEvent(self, *args, **kwargs)
 
     def change(self):
         self.obj[self.key] = self.value()
@@ -136,6 +141,11 @@ class edit_int(QSpinBox):
         if key in obj:
             self.setValue(int(obj[key]))
         self.editingFinished.connect(self.change)
+        self.setFocusPolicy(Qt.StrongFocus)
+
+    def wheelEvent(self, *args, **kwargs):
+        if self.hasFocus():
+            return QSpinBox.wheelEvent(self, *args, **kwargs)
 
     def change(self):
         self.obj[self.key] = self.value()
@@ -207,6 +217,11 @@ class edit_combobox(QComboBox):
         else:
             self.setCurrentIndex(options.index(""))
         self.activated.connect(self.change)
+        self.setFocusPolicy(Qt.StrongFocus)
+
+    def wheelEvent(self, *args, **kwargs):
+        if self.hasFocus():
+            return QComboBox.wheelEvent(self, *args, **kwargs)
 
     def change(self):
         self.obj[self.key] = self.currentText()
@@ -232,6 +247,11 @@ class modifier_selector(QComboBox):
         self.setCurrentIndex(self.entrys.index(active))
         self.setEditable(False)
         self.activated.connect(self.change)
+        self.setFocusPolicy(Qt.StrongFocus)
+
+    def wheelEvent(self, *args, **kwargs):
+        if self.hasFocus():
+            return QComboBox.wheelEvent(self, *args, **kwargs)
 
     def change(self):
         selected = self.currentText()
