@@ -977,6 +977,7 @@ class WinForm(QWidget):
             "boardcfg": {"type": "select", "options": self.boards},
             "protocol": {"type": "select", "options": self.interfaces, "default": "UDP"},
             "axis": {"type": int, "min": 0, "max": 9, "default": 3},
+            "machinetype": {"type": "select", "options": ["mill", "lathe"]},
         }.items():
             aitem = QStandardItem()
             self.model.appendRow(
