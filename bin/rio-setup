@@ -523,7 +523,15 @@ class WinForm(QWidget):
                     self.pinlist.append(pin_id)
 
         # TODO: add expansion pins
-        self.pinlist.sort()
+
+        def sort_key(a):
+            col = a
+            numbers = re.findall(r"\d+", col)
+            for number in numbers:
+                col = col.replace(number, f"{int(number):09d}")
+            return col.lower()
+
+        self.pinlist.sort(key=sort_key)
 
         boards_path = self.get_path(f"boards/")
         modules_path = self.get_path(f"modules/")
