@@ -530,6 +530,25 @@ class WinForm(QWidget):
                 value = value.replace(number, f"{int(number):09d}")
             return value
 
+        def load_pins(board):
+            # try to load list of pins from chipdb files
+            family = board.get("family")
+            fpga_type = board.get("type")
+            package = board.get("package")
+            check_name = family.lower().replace(" ", "_")
+            check_path = f"riocore/chipdata/{check_name}.json"
+            if os.path.isfile(check_path):
+                chipJsonStr = open(check_path, "r").read()
+                chipData = json.loads(chipJsonStr)
+                for fpga_id in [fpga_type, fpga_type.replace("up", "")]:
+                    if fpga_id in chipData:
+                        if package in chipData[fpga_id]:
+                            for pin_name in chipData[fpga_id][package]:
+                                if pin_name not in self.pinlist:
+                                    self.pinlist.append(pin_name)
+                        break
+
+        load_pins(self.board)
         self.pinlist.sort(key=sort_key)
 
         boards_path = self.get_path(f"boards/")
@@ -867,7 +886,6 @@ class WinForm(QWidget):
                 if not pin_setup and pin_defaults.get("optional") is True:
                     continue
                 pin = pin_setup["pin"]
-                in_use.add(pin)
                 pin_real = pin
 
                 mapped = ""
@@ -885,6 +903,7 @@ class WinForm(QWidget):
                     for modifier in modifiers:
                         mlist.add(modifier["type"])
                     comment = f"{','.join(mlist)}"
+                in_use.add(pin_real)
                 table_data.append((pin_real, title, pin_name, mapped, pin_defaults["direction"], comment))
 
         for module_data in self.config.get("modules", []):
@@ -907,8 +926,6 @@ class WinForm(QWidget):
 
                     pin = pin_setup.get("pin", pin_setup.get("pin_mapped", "???"))
                     pin = f"{slot_name}:{pin}"
-
-                    in_use.add(pin)
                     pin_real = pin
 
                     mapped = ""
@@ -926,6 +943,7 @@ class WinForm(QWidget):
                         for modifier in modifiers:
                             mlist.add(modifier["type"])
                         comment = f"{','.join(mlist)}"
+                    in_use.add(pin_real)
                     table_data.append((pin_real, title, pin_name, mapped, pin_defaults["direction"], comment))
 
         for pin in self.pinlist:
@@ -935,6 +953,7 @@ class WinForm(QWidget):
                 if pin in self.pinmapping_rev:
                     if self.pinmapping_rev[pin] in in_use:
                         continue
+                in_use.add(pin)
                 table_data.append((pin, "", "", "", "", "unused"))
 
         def sort_key(a):
