@@ -8,6 +8,7 @@ import glob
 import importlib
 import json
 import os
+import re
 import sys
 import time
 import traceback
@@ -310,6 +311,8 @@ class WinForm(QWidget):
         self.pin_table.setHorizontalHeaderItem(3, QTableWidgetItem("Mapping"))
         self.pin_table.setHorizontalHeaderItem(4, QTableWidgetItem("Direction"))
         self.pin_table.setHorizontalHeaderItem(5, QTableWidgetItem("Comment"))
+        self.pin_table.horizontalHeader().sectionClicked.connect(self.onHeaderClicked)
+        self.pin_table_sort_col = 1
 
         self.imagew = MyQSvgWidget()
 
@@ -394,6 +397,14 @@ class WinForm(QWidget):
         self.config_load()
         # self.load_tree()
         # self.display()
+
+    def onHeaderClicked(self, logicalIndex):
+        logicalIndex += 1
+        if self.pin_table_sort_col == logicalIndex:
+            self.pin_table_sort_col = -logicalIndex
+        else:
+            self.pin_table_sort_col = logicalIndex
+        self.pin_table_load()
 
     def itemChanged(self, item):
         pass
@@ -837,7 +848,7 @@ class WinForm(QWidget):
         self.pin_table.setRowCount(0)
         num = 0
         in_use = set()
-
+        table_data = []
         for plugin_instance in self.plugins.plugin_instances:
             name = plugin_instance.plugin_setup.get("name")
             title = plugin_instance.NAME
@@ -850,31 +861,24 @@ class WinForm(QWidget):
                     continue
                 pin = pin_setup["pin"]
                 in_use.add(pin)
-                self.pin_table.setRowCount(num + 1)
-                pitem = QTableWidgetItem(pin)
-                self.pin_table.setItem(num, 0, pitem)
-                titem = QTableWidgetItem(title)
-                self.pin_table.setItem(num, 1, titem)
-                nitem = QTableWidgetItem(pin_name)
-                self.pin_table.setItem(num, 2, nitem)
-                if pin in self.pinmapping_rev:
-                    mitem = QTableWidgetItem(self.pinmapping_rev[pin])
-                    self.pin_table.setItem(num, 3, mitem)
-                elif pin in self.pinmapping:
-                    mitem = QTableWidgetItem(self.pinmapping[pin])
-                    self.pin_table.setItem(num, 3, mitem)
+                pin_real = pin
 
-                ditem = QTableWidgetItem(pin_defaults["direction"])
-                self.pin_table.setItem(num, 4, ditem)
+                mapped = ""
+                if pin in self.pinmapping_rev:
+                    pin_real = self.pinmapping_rev[pin]
+                    mapped = pin
+                elif pin in self.pinmapping:
+                    pin_real = self.pinmapping[pin]
+                    mapped = pin
+
+                comment = ""
                 modifiers = pin_setup.get("modifier")
                 if modifiers:
                     mlist = set()
                     for modifier in modifiers:
                         mlist.add(modifier["type"])
-                    ditem = QTableWidgetItem(f"{','.join(mlist)}")
-                    self.pin_table.setItem(num, 5, ditem)
-
-                num += 1
+                    comment = f"{','.join(mlist)}"
+                table_data.append((pin_real, title, pin_name, mapped, pin_defaults["direction"], comment))
 
         for module_data in self.config.get("modules", []):
             slot_name = module_data.get("slot")
@@ -888,42 +892,34 @@ class WinForm(QWidget):
                 title = plugin_instance.NAME
                 if name:
                     title = f"{name} ({plugin_instance.NAME})"
+
                 for pin_name, pin_defaults in plugin_instance.PINDEFAULTS.items():
                     pin_setup = plugin_instance.plugin_setup.get("pins", {}).get(pin_name, {})
-                    if "pin_mapped" not in pin_setup:
+                    if not pin_setup and pin_defaults.get("optional") is True:
                         continue
 
-                    # TODO: remove pin_mapped while saving
-                    pin_str = f"{slot_name}:{pin_setup['pin_mapped']}"
-                    if pin_str not in self.pinmapping:
-                        continue
-                    pin = self.pinmapping[pin_str]
+                    pin = pin_setup.get("pin", pin_setup.get("pin_mapped", "???"))
+                    pin = f"{slot_name}:{pin}"
 
                     in_use.add(pin)
-                    self.pin_table.setRowCount(num + 1)
-                    pitem = QTableWidgetItem(pin)
-                    self.pin_table.setItem(num, 0, pitem)
-                    titem = QTableWidgetItem(title)
-                    self.pin_table.setItem(num, 1, titem)
-                    nitem = QTableWidgetItem(pin_name)
-                    self.pin_table.setItem(num, 2, nitem)
-                    if pin in self.pinmapping_rev:
-                        mitem = QTableWidgetItem(self.pinmapping_rev[pin])
-                        self.pin_table.setItem(num, 3, mitem)
-                    elif pin in self.pinmapping:
-                        mitem = QTableWidgetItem(self.pinmapping[pin])
-                        self.pin_table.setItem(num, 3, mitem)
+                    pin_real = pin
 
-                    ditem = QTableWidgetItem(pin_defaults["direction"])
-                    self.pin_table.setItem(num, 4, ditem)
+                    mapped = ""
+                    if pin in self.pinmapping_rev:
+                        pin_real = self.pinmapping_rev[pin]
+                        mapped = pin
+                    elif pin in self.pinmapping:
+                        pin_real = self.pinmapping[pin]
+                        mapped = pin
+
+                    comment = ""
                     modifiers = pin_setup.get("modifier")
                     if modifiers:
                         mlist = set()
                         for modifier in modifiers:
                             mlist.add(modifier["type"])
-                        ditem = QTableWidgetItem(f"{','.join(mlist)}")
-                        self.pin_table.setItem(num, 5, ditem)
-                    num += 1
+                        comment = f"{','.join(mlist)}"
+                    table_data.append((pin_real, title, pin_name, mapped, pin_defaults["direction"], comment))
 
         for pin in self.pinlist:
             if pin not in in_use:
@@ -932,18 +928,29 @@ class WinForm(QWidget):
                 if pin in self.pinmapping_rev:
                     if self.pinmapping_rev[pin] in in_use:
                         continue
-                self.pin_table.setRowCount(num + 1)
-                pitem = QTableWidgetItem(pin)
-                self.pin_table.setItem(num, 0, pitem)
-                titem = QTableWidgetItem("")
-                self.pin_table.setItem(num, 1, titem)
-                nitem = QTableWidgetItem("")
-                self.pin_table.setItem(num, 2, nitem)
-                if pin in self.pinmapping_rev:
-                    mitem = QTableWidgetItem(self.pinmapping_rev[pin])
-                    self.pin_table.setItem(num, 3, mitem)
-                num += 1
-        self.pin_table.resizeColumnToContents(0)
+                table_data.append((pin, "", "", "", "", "unused"))
+
+        def sort_key(a):
+            col = a[idx]
+            numbers = re.findall(r"\d+", col)
+            for number in numbers:
+                col = col.replace(number, f"{int(number):09d}")
+            return col.lower()
+
+        if self.pin_table_sort_col > 0:
+            idx = self.pin_table_sort_col - 1
+            table_data.sort(key=sort_key)
+        elif self.pin_table_sort_col < 0:
+            idx = -self.pin_table_sort_col - 1
+            table_data.sort(key=sort_key, reverse=True)
+
+        for row_n, row in enumerate(table_data):
+            self.pin_table.setRowCount(row_n + 1)
+            for col_n, col in enumerate(row):
+                pitem = QTableWidgetItem(col)
+                self.pin_table.setItem(row_n, col_n, pitem)
+
+        #self.pin_table.resizeColumnToContents(0)
 
     def edit_item(self, obj, key, var_setup=None, cb=None):
         if var_setup is None:
