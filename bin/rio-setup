@@ -524,12 +524,11 @@ class WinForm(QWidget):
 
         # TODO: add expansion pins
 
-        def sort_key(a):
-            col = a
-            numbers = re.findall(r"\d+", col)
+        def sort_key(value):
+            numbers = re.findall(r"\d+", value)
             for number in numbers:
-                col = col.replace(number, f"{int(number):09d}")
-            return col.lower()
+                value = value.replace(number, f"{int(number):09d}")
+            return value
 
         self.pinlist.sort(key=sort_key)
 
