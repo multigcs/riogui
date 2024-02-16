@@ -3,29 +3,28 @@
 #
 
 import argparse
-import os
 import glob
+import os
 import sys
 import time
 import traceback
 from functools import partial
 from struct import *
 
+import riocore
 from PyQt5 import QtGui
 from PyQt5.QtCore import QDateTime, Qt, QTimer
-from PyQt5.QtWidgets import QApplication, QCheckBox, QGridLayout, QLabel, QListWidget, QPushButton, QSlider, QWidget, QDialogButtonBox, QDialog, QVBoxLayout, QHBoxLayout, QComboBox, QLineEdit
-
-import riocore
-
+from PyQt5.QtWidgets import QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QListWidget, QPushButton, QSlider, QVBoxLayout, QWidget
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--debug', "-d", help="debug", default=False, action='store_true')
-parser.add_argument('--interval', "-i", help="interval", type=int, default=50)
+parser.add_argument("--debug", "-d", help="debug", default=False, action="store_true")
+parser.add_argument("--interval", "-i", help="interval", type=int, default=50)
 parser.add_argument("config", help="config", nargs="?", type=str, default=None)
 parser.add_argument("target", help="target", nargs="?", type=str, default="")
 args = parser.parse_args()
 
 riocore_path = os.path.dirname(riocore.__file__)
+
 
 class WinForm(QWidget):
     def __init__(self, parent=None):
@@ -47,7 +46,6 @@ class WinForm(QWidget):
             exit(1)
         if args.debug:
             print(f"loading: {self.config_file}")
-
 
         self.project = riocore.Project(self.config_file)
 
@@ -103,7 +101,6 @@ class WinForm(QWidget):
         self.timer.start(args.interval)
 
     def target_select(self):
-
         def target_check(item):
             target = device.currentText()
             is_udp = target == "UDP"
@@ -155,8 +152,6 @@ class WinForm(QWidget):
                         if "port" in plugin_instance.plugin_setup:
                             port = plugin_instance.plugin_setup["port"]
 
-
-
         vlayout_left.addWidget(device)
         vlayout_left.addStretch()
 
@@ -183,7 +178,6 @@ class WinForm(QWidget):
             return target
         else:
             return None
-
 
     def slider_reset(self, widget):
         widget.setValue(0)
@@ -231,7 +225,6 @@ class WinForm(QWidget):
                 if rxdata[0] != 0x61 or rxdata[1] != 0x74 or rxdata[2] != 0x61 and rxdata[3] != 0x64:
                     print(f"ERROR: reveived data have wrong header: 0x{rxdata[0]:X} 0x{rxdata[1]:X} 0x{rxdata[2]:X} 0x{rxdata[3]:X}")
                     return
-
 
             self.project.rxdata_set(rxdata)
 

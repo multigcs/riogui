@@ -3,11 +3,11 @@
 #
 
 import argparse
-import os
 import copy
 import glob
 import importlib
 import json
+import os
 import sys
 import time
 import traceback
@@ -15,8 +15,9 @@ from functools import partial
 from struct import *
 
 import graphviz
+import riocore
 from PyQt5 import QtGui, QtSvg
-from PyQt5.QtCore import QDateTime, QSize, Qt, QTimer
+from PyQt5.QtCore import QDateTime, QRect, QSize, Qt, QTimer
 from PyQt5.QtGui import QColor, QFont, QStandardItem, QStandardItemModel
 from PyQt5.QtWidgets import (
     QAbstractItemView,
@@ -46,9 +47,35 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
-import riocore
-
 riocore_path = os.path.dirname(riocore.__file__)
+
+
+class MyQSvgWidget(QtSvg.QSvgWidget):
+    def mousePressEvent(self, event):
+        size = self.size()
+        self.renderer().setViewBox(QRect(0, 0, size.width(), size.height()))
+        self.repaint()
+
+    def wheelEvent(self, event: QtGui.QWheelEvent) -> None:
+        delta = event.angleDelta()
+        mp_x = event.pos().x()
+        mp_y = event.pos().y()
+        if delta.y() < 0:
+            scale = 1.1
+            diff_x = -mp_x / 10
+            diff_y = -mp_y / 10
+        else:
+            scale = 0.9
+            diff_x = mp_x / 10
+            diff_y = mp_y / 10
+        viewbox = self.renderer().viewBox()
+        x = int(viewbox.x()) + diff_x
+        y = int(viewbox.y()) + diff_y
+        width = int(viewbox.width()) * scale
+        height = int(viewbox.height()) * scale
+        self.renderer().setViewBox(QRect(int(x), int(y), int(width), int(height)))
+        self.repaint()
+
 
 class MyStandardItem(QStandardItem):
     def __init__(self, txt="", font_size=12, set_bold=False, color=QColor(0, 0, 0), key=None, help_text=None):
@@ -187,6 +214,7 @@ class edit_combobox(QComboBox):
             self.cb(self.currentText())
         self.win.display()
 
+
 class modifier_selector(QComboBox):
     def __init__(self, win, pin_setup, modifier_id, modifier_view, help_text=None):
         super().__init__()
@@ -263,7 +291,7 @@ class WinForm(QWidget):
         self.pin_table.setHorizontalHeaderItem(4, QTableWidgetItem("Direction"))
         self.pin_table.setHorizontalHeaderItem(5, QTableWidgetItem("Comment"))
 
-        self.imagew = QtSvg.QSvgWidget()
+        self.imagew = MyQSvgWidget()
 
         scroll = QScrollArea()
         scroll.setWidget(self.imagew)
@@ -777,7 +805,6 @@ class WinForm(QWidget):
                     fillcolor="lightblue",
                 )
 
-
         label = f"{{ {{{' | '.join(sportsl)}}} | {fpga_name} | {{{' | '.join(sportsr)}}} }}"
         gAll.node(f"{fpga_name}", shape="record", label=label, fontsize="11pt", style="rounded, filled", fillcolor="yellow")
 
@@ -933,7 +960,6 @@ class WinForm(QWidget):
             )
             self.treeview.setIndexWidget(aitem.index(), self.edit_item(self.config, key, var_setup))
 
-
         bitem = QStandardItem()
         self.model.appendRow(
             [
@@ -1059,7 +1085,7 @@ class WinForm(QWidget):
             for plugin in module_defaults.get("plugins"):
                 for pin_name, pin_config in plugin.get("pins", {}).items():
                     pin_location = pin_config.get("pin")
-                    print(pin_location , slot_pins)
+                    print(pin_location, slot_pins)
                     if pin_location not in slot_pins:
                         check = False
 
@@ -1120,7 +1146,6 @@ class WinForm(QWidget):
         self.display()
 
     def select_plugin(self):
-
         def change(combo, info, description, selected):
             plugin_name = combo.currentText()
             plugin_list = self.plugins.list()
@@ -1407,7 +1432,6 @@ class WinForm(QWidget):
                 if expand:
                     self.treeview.expand(self.model.indexFromItem(signal_option_view))
 
-
             display_view = MyStandardItem("Display", help_text="display-configuration for this signal")
             signal_view.appendRow(display_view)
             if expand:
@@ -1441,7 +1465,6 @@ class WinForm(QWidget):
                 self.treeview.setIndexWidget(citem.index(), self.edit_item(signals_setup[signal_name]["display"], option, option_setup, cb=cb))
                 if expand:
                     self.treeview.expand(self.model.indexFromItem(signal_option_view))
-
 
     def tree_add_joint(self, parent, plugin_instance, expand=False):
         joint_view = MyStandardItem("Joint", help_text="joint-configuration for this plugin instance")
@@ -1502,7 +1525,6 @@ class WinForm(QWidget):
                 "type": "select",
                 "options": ["YES", "NO"],
             },
-
         }
 
         for option, option_setup in joint_options.items():
@@ -1520,7 +1542,6 @@ class WinForm(QWidget):
             self.treeview.setIndexWidget(citem.index(), self.edit_item(joints_setup, option, option_setup, cb=cb))
             if expand:
                 self.treeview.expand(self.model.indexFromItem(joint_option_view))
-
 
     def tree_add_pins(self, parent, plugin_instance, expand=False, nopins=False):
         pins_view = MyStandardItem("Pins", help_text="pin-configuration for this plugin instance")
