@@ -1010,7 +1010,7 @@ class WinForm(QWidget):
             "protocol": {"type": "select", "options": self.interfaces, "default": "UDP"},
             "axis": {"type": int, "min": 0, "max": 9, "default": 3},
             "machinetype": {"type": "select", "options": ["mill", "lathe"]},
-            "gui": {"type": "select", "options": ["axis", "qtdragon"], "default": "axis"},
+            "gui": {"type": "select", "options": ["axis", "qtdragon", "tklinuxcnc", "touchy"], "default": "axis"},
         }.items():
             aitem = QStandardItem()
             self.model.appendRow(
