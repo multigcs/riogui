@@ -582,7 +582,7 @@ class WinForm(QWidget):
             print(f"ERROR: {error}")
             self.info_widget.setText(f"ERROR: {error}")
 
-    def json_preview(self):
+    def clean_config(self):
         config = copy.deepcopy(self.config)
         # cleanup
         for module in config.get("modules", []):
@@ -599,7 +599,10 @@ class WinForm(QWidget):
             for name, plugin_config in plugin.get("config", {}).items():
                 if "instance" in plugin_config:
                     del plugin_config["instance"]
+        return config
 
+    def json_preview(self):
+        config = self.clean_config()
         self.jsonpreview.clear()
         self.jsonpreview.insertPlainText(json.dumps(config, indent=4))
         self.jsonpreview.verticalScrollBar().setValue(0)
@@ -1320,19 +1323,7 @@ class WinForm(QWidget):
         widget.verticalScrollBar().setValue(0)
 
     def generate(self):
-        config = copy.deepcopy(self.config)
-        # cleanup
-        for module in config.get("modules", []):
-            slot_name = module.get("slot")
-            module_name = module.get("module")
-            module_setup = module.get("setup")
-            module_path = self.get_path(f"modules/{module_name}.json")
-            moduleJsonStr = open(module_path, "r").read()
-            module_defaults = json.loads(moduleJsonStr)
-            for name, setup in module.get("setup", {}).items():
-                for pin, pin_setup in setup.get("pins", {}).items():
-                    del pin_setup["pin_mapped"]
-
+        config = self.clean_config()
         project = riocore.Project(json.dumps(config, indent=4))
         project.generator()
 
@@ -1363,18 +1354,7 @@ class WinForm(QWidget):
             self.save_config_ass(name[0])
 
     def save_config_ass(self, filename):
-        config = copy.deepcopy(self.config)
-        # cleanup
-        for module in config.get("modules", []):
-            slot_name = module.get("slot")
-            module_name = module.get("module")
-            module_setup = module.get("setup")
-            module_path = self.get_path(f"modules/{module_name}.json")
-            moduleJsonStr = open(module_path, "r").read()
-            module_defaults = json.loads(moduleJsonStr)
-            for name, setup in module.get("setup", {}).items():
-                for pin, pin_setup in setup.get("pins", {}).items():
-                    del pin_setup["pin_mapped"]
+        config = self.clean_config()
         open(filename, "w").write(json.dumps(config, indent=4))
 
     def tree_add_plugin(self, parent, plugin_instance, nopins=False, expand=False):
