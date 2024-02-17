@@ -582,7 +582,6 @@ class WinForm(QWidget):
             print(f"ERROR: {error}")
             self.info_widget.setText(f"ERROR: {error}")
 
-
     def json_preview(self):
         config = copy.deepcopy(self.config)
         # cleanup
@@ -596,6 +595,10 @@ class WinForm(QWidget):
             for name, setup in module.get("setup", {}).items():
                 for pin, pin_setup in setup.get("pins", {}).items():
                     del pin_setup["pin_mapped"]
+        for plugin in config.get("plugins", []):
+            for name, plugin_config in plugin.get("config", {}).items():
+                if "instance" in plugin_config:
+                    del plugin_config["instance"]
 
         self.jsonpreview.clear()
         self.jsonpreview.insertPlainText(json.dumps(config, indent=4))
