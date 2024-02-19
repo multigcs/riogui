@@ -16,6 +16,11 @@ from PyQt5 import QtGui
 from PyQt5.QtCore import QDateTime, Qt, QTimer
 from PyQt5.QtWidgets import QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QListWidget, QPushButton, QSlider, QVBoxLayout, QWidget
 
+STYLESHEET = """
+    background-color: #444444;
+    color: white;
+"""
+
 parser = argparse.ArgumentParser()
 parser.add_argument("--debug", "-d", help="debug", default=False, action="store_true")
 parser.add_argument("--interval", "-i", help="interval", type=int, default=50)
@@ -30,8 +35,8 @@ class WinForm(QWidget):
     def __init__(self, parent=None):
         super(WinForm, self).__init__(parent)
         self.setWindowTitle(f"LinuxCNC-RIO - TestGui")
-
         self.setMinimumWidth(800)
+        self.setStyleSheet(STYLESHEET)
 
         self.listFile = QListWidget()
         layout = QGridLayout()
@@ -111,6 +116,7 @@ class WinForm(QWidget):
         dialog.setWindowTitle("select target")
         dialog.setFixedWidth(500)
         dialog.setFixedHeight(400)
+        dialog.setStyleSheet(STYLESHEET)
 
         dialog.buttonBox = QDialogButtonBox(QDialogButtonBox.Ok)
         dialog.buttonBox.accepted.connect(dialog.accept)
