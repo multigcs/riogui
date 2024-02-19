@@ -50,6 +50,11 @@ from PyQt5.QtWidgets import (
 
 riocore_path = os.path.dirname(riocore.__file__)
 
+STYLESHEET = """
+    background-color: #444444;
+    color: white;
+"""
+
 
 class MyQSvgWidget(QtSvg.QSvgWidget):
     def mousePressEvent(self, event):
@@ -79,13 +84,14 @@ class MyQSvgWidget(QtSvg.QSvgWidget):
 
 
 class MyStandardItem(QStandardItem):
-    def __init__(self, txt="", font_size=12, set_bold=False, color=QColor(0, 0, 0), key=None, help_text=None):
+    def __init__(self, txt="", font_size=12, set_bold=False, key=None, help_text=None):
         super().__init__()
         self.key = key
         if help_text:
             self.setToolTip(help_text)
+        else:
+            self.setToolTip(txt)
         self.setEditable(False)
-        self.setForeground(color)
         self.setText(txt)
 
 
@@ -274,11 +280,7 @@ class WinForm(QWidget):
         self.setWindowTitle(f"LinuxCNC-RIO - Setup-GUI")
         self.setMinimumWidth(1400)
         self.setMinimumHeight(900)
-
-        #self.setStyleSheet("""
-        #    background-color: white;
-        #    color: black;
-        #""")
+        self.setStyleSheet(STYLESHEET)
 
         self.listFile = QListWidget()
         layout = QGridLayout()
@@ -440,7 +442,7 @@ class WinForm(QWidget):
     def testgui(self):
         print("starting testgui..", f"{os.path.dirname(__file__)}/rio-test")
         filename = f"{self.config_file}.test-gui-temp.json"
-        self.save_config_ass(filename)
+        self.save_config_as(filename)
         testgui_path = f"{os.path.dirname(__file__)}/rio-test"
         os.system(f"({testgui_path} {filename} ; rm {filename}) &")
 
@@ -1023,7 +1025,7 @@ class WinForm(QWidget):
             "machinetype": {"type": "select", "options": ["mill", "lathe"]},
             "gui": {"type": "select", "options": ["axis", "qtdragon", "tklinuxcnc", "touchy", "probe_basic"], "default": "axis"},
         }.items():
-            aitem = QStandardItem()
+            aitem = MyStandardItem()
             self.model.appendRow(
                 [
                     MyStandardItem(key.title()),
@@ -1032,7 +1034,7 @@ class WinForm(QWidget):
             )
             self.treeview.setIndexWidget(aitem.index(), self.edit_item(self.config, key, var_setup))
 
-        bitem = QStandardItem()
+        bitem = MyStandardItem()
         self.model.appendRow(
             [
                 MyStandardItem("Modules", help_text="Module-Configuration"),
@@ -1053,7 +1055,7 @@ class WinForm(QWidget):
             title = slot_name
             if module_name:
                 title = f"{module_name} ({title})"
-            aitem = QStandardItem()
+            aitem = MyStandardItem()
             tree_modules.appendRow(
                 [
                     MyStandardItem(title),
@@ -1067,7 +1069,7 @@ class WinForm(QWidget):
                 "module": {"type": "select", "options": self.module_names},
                 "slot": {"type": "select", "options": self.slots},
             }.items():
-                aitem = QStandardItem()
+                aitem = MyStandardItem()
                 module_view.appendRow(
                     [
                         MyStandardItem(key.title()),
@@ -1084,7 +1086,7 @@ class WinForm(QWidget):
             for plugin_instance in self.modules[slot_name]["instances"]:
                 self.tree_add_plugin(module_plugins_view, plugin_instance, nopins=True, expand=False)
 
-        bitem = QStandardItem()
+        bitem = MyStandardItem()
         self.model.appendRow(
             [
                 MyStandardItem("Plugins"),
@@ -1211,7 +1213,7 @@ class WinForm(QWidget):
     def config_plugin(self, plugin_instance, plugin_id, widget):
         if os.path.isfile(f"{riocore_path}/plugins/{plugin_instance.NAME}/config.py"):
             plugin_config = importlib.import_module(".config", f"riocore.plugins.{plugin_instance.NAME}")
-            config_box = plugin_config.config(plugin_instance)
+            config_box = plugin_config.config(plugin_instance, styleSheet=STYLESHEET)
             config_box.run()
         self.config_load()
         self.load_tree()
@@ -1239,6 +1241,7 @@ class WinForm(QWidget):
         dialog.setWindowTitle("add Plugin")
         dialog.setFixedWidth(500)
         dialog.setFixedHeight(400)
+        dialog.setStyleSheet(STYLESHEET)
 
         dialog.buttonBox = QDialogButtonBox(QDialogButtonBox.Ok)
         dialog.buttonBox.accepted.connect(dialog.accept)
@@ -1284,6 +1287,7 @@ class WinForm(QWidget):
     def select_module(self):
         dialog = QDialog()
         dialog.setWindowTitle("add Module")
+        dialog.setStyleSheet(STYLESHEET)
 
         dialog.buttonBox = QDialogButtonBox(QDialogButtonBox.Ok)
         dialog.buttonBox.accepted.connect(dialog.accept)
@@ -1356,9 +1360,9 @@ class WinForm(QWidget):
         file_dialog.setNameFilters(["json (*.json)"])
         name = file_dialog.getSaveFileName(self, "Save File", self.config_file, "json (*.json)")
         if name[0]:
-            self.save_config_ass(name[0])
+            self.save_config_as(name[0])
 
-    def save_config_ass(self, filename):
+    def save_config_as(self, filename):
         config = self.clean_config()
         open(filename, "w").write(json.dumps(config, indent=4))
 
@@ -1370,7 +1374,7 @@ class WinForm(QWidget):
 
         help_text = plugin_instance.INFO
 
-        aitem = QStandardItem()
+        aitem = MyStandardItem()
         parent.appendRow(
             [
                 MyStandardItem(title, help_text=help_text),
@@ -1420,7 +1424,7 @@ class WinForm(QWidget):
             if unit:
                 title = f"{title} ({unit})"
             help_text = option_defaults.get("description", title)
-            aitem = QStandardItem()
+            aitem = MyStandardItem()
             parent.appendRow(
                 [
                     MyStandardItem(title, help_text=help_text),
@@ -1435,7 +1439,7 @@ class WinForm(QWidget):
                 self.treeview.expand(self.model.indexFromItem(options_view))
 
     def tree_add_modifier(self, parent, pin_setup, modifier_id, modifier):
-        mitem = QStandardItem()
+        mitem = MyStandardItem()
         parent.appendRow(
             [
                 MyStandardItem("Modifier"),
@@ -1468,7 +1472,7 @@ class WinForm(QWidget):
 
             for option, option_setup in {"net": {"type": str}, "function": {"type": str}}.items():
                 help_text = f"{option} config"
-                citem = QStandardItem()
+                citem = MyStandardItem()
                 signal_view.appendRow(
                     [
                         MyStandardItem(option, help_text=help_text),
@@ -1502,7 +1506,7 @@ class WinForm(QWidget):
 
             for option, option_setup in {"title": {"type": str}, "section": {"type": str}, "type": {"type": "select", "options": type_options}}.items():
                 help_text = f"{option} config"
-                citem = QStandardItem()
+                citem = MyStandardItem()
                 display_view.appendRow(
                     [
                         MyStandardItem(option, help_text=help_text),
@@ -1578,7 +1582,7 @@ class WinForm(QWidget):
 
         for option, option_setup in joint_options.items():
             help_text = f"{option} config"
-            citem = QStandardItem()
+            citem = MyStandardItem()
             joint_view.appendRow(
                 [
                     MyStandardItem(option, help_text=help_text),
@@ -1605,7 +1609,7 @@ class WinForm(QWidget):
             if optional:
                 help_text = f"{help_text} (optional)"
             pin_title = f"{pin_name} ({direction})"
-            citem = QStandardItem()
+            citem = MyStandardItem()
             pins_view.appendRow(
                 [
                     MyStandardItem(pin_title, help_text=help_text),
@@ -1620,7 +1624,7 @@ class WinForm(QWidget):
                 self.treeview.expand(self.model.indexFromItem(pin_view))
 
             if direction == "input":
-                pitem = QStandardItem()
+                pitem = MyStandardItem()
                 pin_view.appendRow(
                     [
                         MyStandardItem("Pullup", help_text="activate pullup resistor for this pin"),
@@ -1629,7 +1633,7 @@ class WinForm(QWidget):
                 )
                 self.treeview.setIndexWidget(pitem.index(), self.edit_item(pin_setup, "pullup", {"type": bool}))
 
-            bitem = QStandardItem()
+            bitem = MyStandardItem()
             pin_view.appendRow(
                 [
                     MyStandardItem("Modifiers", help_text="pin modifier chain"),
