@@ -96,12 +96,13 @@ class MyStandardItem(QStandardItem):
 
 
 class edit_float(QDoubleSpinBox):
-    def __init__(self, win, obj, key, vmin=None, vmax=None, cb=None, help_text=None):
+    def __init__(self, win, obj, key, vmin=None, vmax=None, cb=None, help_text=None, default=None):
         super().__init__()
         self.win = win
         self.cb = cb
         self.obj = obj
         self.key = key
+        self.default = default
         if help_text:
             self.setToolTip(help_text)
         if vmin:
@@ -114,6 +115,9 @@ class edit_float(QDoubleSpinBox):
             self.setMaximum(999999)
         if key in obj:
             self.setValue(float(obj[key]))
+        elif default is not None:
+            self.setValue(float(default))
+        self.valueChanged.connect(self.change)
         self.editingFinished.connect(self.change)
         self.setFocusPolicy(Qt.StrongFocus)
 
@@ -122,19 +126,23 @@ class edit_float(QDoubleSpinBox):
             return QSpinBox.wheelEvent(self, *args, **kwargs)
 
     def change(self):
-        self.obj[self.key] = self.value()
+        if self.value() != self.default:
+            self.obj[self.key] = self.value()
+        elif self.key in self.obj:
+            del self.obj[self.key]
         if self.cb:
             self.cb(self.value())
         self.win.display()
 
 
 class edit_int(QSpinBox):
-    def __init__(self, win, obj, key, vmin=None, vmax=None, cb=None, help_text=None):
+    def __init__(self, win, obj, key, vmin=None, vmax=None, cb=None, help_text=None, default=None):
         super().__init__()
         self.win = win
         self.cb = cb
         self.obj = obj
         self.key = key
+        self.default = default
         if help_text:
             self.setToolTip(help_text)
         if vmin:
@@ -147,6 +155,9 @@ class edit_int(QSpinBox):
             self.setMaximum(999999)
         if key in obj:
             self.setValue(int(obj[key]))
+        elif default is not None:
+            self.setValue(int(default))
+        self.valueChanged.connect(self.change)
         self.editingFinished.connect(self.change)
         self.setFocusPolicy(Qt.StrongFocus)
 
@@ -155,59 +166,75 @@ class edit_int(QSpinBox):
             return QSpinBox.wheelEvent(self, *args, **kwargs)
 
     def change(self):
-        self.obj[self.key] = self.value()
+        if self.value() != self.default:
+            self.obj[self.key] = self.value()
+        elif self.key in self.obj:
+            del self.obj[self.key]
         if self.cb:
             self.cb(self.value())
         self.win.display()
 
 
 class edit_text(QLineEdit):
-    def __init__(self, win, obj, key, cb=None, help_text=None):
+    def __init__(self, win, obj, key, cb=None, help_text=None, default=None):
         super().__init__()
         self.win = win
         self.cb = cb
         self.obj = obj
         self.key = key
+        self.default = default
         if help_text:
             self.setToolTip(help_text)
         if key in obj:
             self.setText(str(obj[key]))
+        elif default is not None:
+            self.setText(str(default))
         self.textChanged.connect(self.change)
 
     def change(self):
-        self.obj[self.key] = self.text()
+        if self.text() != self.default:
+            self.obj[self.key] = self.text()
+        elif self.key in self.obj:
+            del self.obj[self.key]
         if self.cb:
             self.cb(self.text())
         self.win.display()
 
 
 class edit_bool(QCheckBox):
-    def __init__(self, win, obj, key, cb=None, help_text=None):
+    def __init__(self, win, obj, key, cb=None, help_text=None, default=None):
         super().__init__()
         self.win = win
         self.cb = cb
         self.obj = obj
         self.key = key
+        self.default = default
         if help_text:
             self.setToolTip(help_text)
         if key in obj:
             self.setChecked(obj[key])
+        elif default is not None:
+            self.setChecked(default)
         self.stateChanged.connect(self.change)
 
     def change(self):
-        self.obj[self.key] = self.isChecked()
+        if self.isChecked() != self.default:
+            self.obj[self.key] = self.isChecked()
+        elif self.key in self.obj:
+            del self.obj[self.key]
         if self.cb:
             self.cb(self.text())
         self.win.display()
 
 
 class edit_combobox(QComboBox):
-    def __init__(self, win, obj, key, options, cb=None, help_text=None):
+    def __init__(self, win, obj, key, options, cb=None, help_text=None, default=None):
         super().__init__()
         self.win = win
         self.cb = cb
         self.obj = obj
         self.key = key
+        self.default = default
         options = options.copy()
         if help_text:
             self.setToolTip(help_text)
@@ -221,6 +248,8 @@ class edit_combobox(QComboBox):
         self.setEditable(True)
         if key in obj:
             self.setCurrentIndex(options.index(obj[key]))
+        elif default is not None:
+            self.setCurrentIndex(options.index(default))
         else:
             self.setCurrentIndex(options.index(""))
         self.activated.connect(self.change)
@@ -231,7 +260,10 @@ class edit_combobox(QComboBox):
             return QComboBox.wheelEvent(self, *args, **kwargs)
 
     def change(self):
-        self.obj[self.key] = self.currentText()
+        if self.currentText() != self.default:
+            self.obj[self.key] = self.currentText()
+        elif self.key in self.obj:
+            del self.obj[self.key]
         if self.cb:
             self.cb(self.currentText())
         self.win.display()
@@ -332,7 +364,7 @@ class WinForm(QWidget):
         self.jsonpreview = QPlainTextEdit()
         self.jsonpreview.clear()
         self.jsonpreview.insertPlainText("...")
-        self.jsonpreview.verticalScrollBar().setValue(0)
+        #self.jsonpreview.verticalScrollBar().setValue(0)
         self.tabwidget.addTab(self.jsonpreview, "Json-Preview")
 
         self.gateware_tabwidget = QTabWidget()
@@ -357,12 +389,12 @@ class WinForm(QWidget):
         for filename, widget in self.gateware.items():
             widget.clear()
             widget.insertPlainText("Please press generate ...")
-            widget.verticalScrollBar().setValue(0)
+            #widget.verticalScrollBar().setValue(0)
             self.gateware_tabwidget.addTab(widget, filename)
         for filename, widget in self.linuxcnc.items():
             widget.clear()
             widget.insertPlainText("Please press generate ...")
-            widget.verticalScrollBar().setValue(0)
+            #widget.verticalScrollBar().setValue(0)
             self.linuxcnc_tabwidget.addTab(widget, filename)
 
         row += 1
@@ -631,7 +663,7 @@ class WinForm(QWidget):
         config = self.clean_config()
         self.jsonpreview.clear()
         self.jsonpreview.insertPlainText(json.dumps(config, indent=4))
-        self.jsonpreview.verticalScrollBar().setValue(0)
+        #self.jsonpreview.verticalScrollBar().setValue(0)
 
     def overview_load(self):
         num = 0
@@ -1013,23 +1045,22 @@ class WinForm(QWidget):
             for col_n, col in enumerate(row):
                 pitem = QTableWidgetItem(col)
                 self.pin_table.setItem(row_n, col_n, pitem)
-
         #self.pin_table.resizeColumnToContents(0)
 
     def edit_item(self, obj, key, var_setup=None, cb=None):
         if var_setup is None:
             var_setup = {}
-        if key not in obj and "default" in var_setup:
-            obj[key] = var_setup["default"]
+        #if key not in obj and "default" in var_setup:
+        #    obj[key] = var_setup["default"]
         if var_setup["type"] == "select":
-            return edit_combobox(self, obj, key, var_setup.get("options", []), cb=cb)
+            return edit_combobox(self, obj, key, var_setup.get("options", []), cb=cb, default=var_setup.get("default"))
         elif var_setup["type"] == int:
-            return edit_int(self, obj, key, vmin=var_setup.get("min"), vmax=var_setup.get("max"), cb=cb)
+            return edit_int(self, obj, key, vmin=var_setup.get("min"), vmax=var_setup.get("max"), cb=cb, default=var_setup.get("default"))
         elif var_setup["type"] == float:
-            return edit_float(self, obj, key, vmin=var_setup.get("min"), vmax=var_setup.get("max"), cb=cb)
+            return edit_float(self, obj, key, vmin=var_setup.get("min"), vmax=var_setup.get("max"), cb=cb, default=var_setup.get("default"))
         elif var_setup["type"] == bool:
-            return edit_bool(self, obj, key, cb=cb)
-        return edit_text(self, obj, key, cb=cb)
+            return edit_bool(self, obj, key, cb=cb, default=var_setup.get("default"))
+        return edit_text(self, obj, key, cb=cb, default=var_setup.get("default"))
 
     def load_tree(self):
         while self.model.rowCount() > 0:
@@ -1052,6 +1083,60 @@ class WinForm(QWidget):
                 ]
             )
             self.treeview.setIndexWidget(aitem.index(), self.edit_item(self.config, key, var_setup))
+
+        bitem = MyStandardItem()
+        self.model.appendRow(
+            [
+                MyStandardItem("LinuxCNC INI", help_text="LinuxCNC INI-Defaults"),
+                bitem,
+            ]
+        )
+        tree_lcncsec = self.model.item(self.model.rowCount() - 1)
+
+        if "linuxcnc" not in self.config:
+            self.config["linuxcnc"] = {}
+        if "ini" not in self.config["linuxcnc"]:
+            self.config["linuxcnc"]["ini"] = {}
+        ini_config = self.config["linuxcnc"]["ini"]
+
+        gui = self.config.get("gui", "axis")
+        machinetype = self.config.get("machinetype", "mill")
+        for section, section_data in riocore.generator.LinuxCNC.LinuxCNC.ini_defaults(gui, machinetype).items():
+            if section not in ini_config:
+                ini_config[section] = {}
+            section_config = ini_config[section]
+
+            aitem = MyStandardItem()
+            tree_lcncsec.appendRow(
+                [
+                    MyStandardItem(section),
+                    MyStandardItem(""),
+                ]
+            )
+            lcncsec_view = tree_lcncsec.child(tree_lcncsec.rowCount() - 1)
+            #self.treeview.expand(self.model.indexFromItem(lcncsec_view))
+            for key, value in section_data.items():
+                if value is not None and not isinstance(value, list):
+                    var_setup = {"type": type(value), "default": value}
+                    if section == "DISPLAY" and key == "POSITION_OFFSET":
+                        var_setup["type"] = "select"
+                        var_setup["options"] = ["RELATIVE", "MACHINE"]
+                    if section == "DISPLAY" and key == "POSITION_FEEDBACK":
+                        var_setup["type"] = "select"
+                        var_setup["options"] = ["COMMANDED", "ACTUAL"]
+                    if section == "HAL" and key == "TWOPASS":
+                        var_setup["type"] = "select"
+                        var_setup["options"] = ["ON", "OFF"]
+                        var_setup["tooltip"] = "Use two pass processing for loading HAL comps."
+
+                    aitem = MyStandardItem()
+                    lcncsec_view.appendRow(
+                        [
+                            MyStandardItem(key, help_text=var_setup.get("tooltip")),
+                            aitem,
+                        ]
+                    )
+                    self.treeview.setIndexWidget(aitem.index(), self.edit_item(section_config, key, var_setup))
 
         bitem = MyStandardItem()
         self.model.appendRow(
@@ -1348,7 +1433,7 @@ class WinForm(QWidget):
 
         widget.clear()
         widget.insertPlainText(logdata)
-        widget.verticalScrollBar().setValue(0)
+        #widget.verticalScrollBar().setValue(0)
 
     def generate(self):
         config = self.clean_config()
@@ -1362,7 +1447,7 @@ class WinForm(QWidget):
                 file_content = open(f"Output/{config_name}/Gateware/{filename}", "r").read()
                 widget.clear()
                 widget.insertPlainText(file_content)
-                widget.verticalScrollBar().setValue(0)
+                #widget.verticalScrollBar().setValue(0)
 
         for filename, widget in self.linuxcnc.items():
             if filename == "rio.c":
@@ -1371,7 +1456,7 @@ class WinForm(QWidget):
                 file_content = open(f"Output/{config_name}/LinuxCNC/Configuration/{filename}", "r").read()
             widget.clear()
             widget.insertPlainText(file_content)
-            widget.verticalScrollBar().setValue(0)
+            #widget.verticalScrollBar().setValue(0)
 
     def save_config(self, widget):
         print("save...")
