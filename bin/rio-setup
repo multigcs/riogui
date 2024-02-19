@@ -275,6 +275,11 @@ class WinForm(QWidget):
         self.setMinimumWidth(1400)
         self.setMinimumHeight(900)
 
+        #self.setStyleSheet("""
+        #    background-color: white;
+        #    color: black;
+        #""")
+
         self.listFile = QListWidget()
         layout = QGridLayout()
         self.setLayout(layout)
