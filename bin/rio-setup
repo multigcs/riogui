@@ -589,6 +589,24 @@ class WinForm(QWidget):
             print(f"ERROR: {error}")
             self.info_widget.setText(f"ERROR: {error}")
 
+    def struct_clean(self, data):
+        # removing empty lists and dicts
+        for key in list(data):
+            if isinstance(data[key], list):
+                for pn, part in enumerate(data[key]):
+                    if isinstance(part, dict):
+                        if not part:
+                            print("DEL1", key, pn, data[key][pn])
+                            del data[key][pn]
+                        else:
+                            self.struct_clean(data[key][pn])
+                if not data[key]:
+                    del data[key]
+            elif isinstance(data[key], dict):
+                self.struct_clean(data[key])
+                if not data[key]:
+                    del data[key]
+
     def clean_config(self):
         config = copy.deepcopy(self.config)
         # cleanup
@@ -606,6 +624,7 @@ class WinForm(QWidget):
             for name, plugin_config in plugin.get("config", {}).items():
                 if "instance" in plugin_config:
                     del plugin_config["instance"]
+        self.struct_clean(config)
         return config
 
     def json_preview(self):
