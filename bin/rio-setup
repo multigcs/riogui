@@ -411,7 +411,7 @@ class WinForm(QWidget):
         button_layout.addWidget(button)
 
         button = QPushButton("Generate")
-        button.clicked.connect(self.generate)
+        button.clicked.connect(self.generate_cb)
         button_layout.addWidget(button)
 
         button = QPushButton("Compile")
@@ -1435,28 +1435,36 @@ class WinForm(QWidget):
         widget.insertPlainText(logdata)
         #widget.verticalScrollBar().setValue(0)
 
-    def generate(self):
-        config = self.clean_config()
-        project = riocore.Project(json.dumps(config, indent=4))
-        project.generator()
-
+    def generate_cb(self):
+        output_path = "OutputTMP"
         config_name = self.config.get("name")
-
-        for filename, widget in self.gateware.items():
-            if filename != "Compile-Output":
-                file_content = open(f"Output/{config_name}/Gateware/{filename}", "r").read()
+        self.generate(output_path)
+        try:
+            for filename, widget in self.gateware.items():
+                if filename != "Compile-Output":
+                    file_content = open(f"{output_path}/{config_name}/Gateware/{filename}", "r").read()
+                    widget.clear()
+                    widget.insertPlainText(file_content)
+            for filename, widget in self.linuxcnc.items():
+                if filename == "rio.c":
+                    file_content = open(f"{output_path}/{config_name}/LinuxCNC/Component/{filename}", "r").read()
+                else:
+                    file_content = open(f"{output_path}/{config_name}/LinuxCNC/Configuration/{filename}", "r").read()
                 widget.clear()
                 widget.insertPlainText(file_content)
-                #widget.verticalScrollBar().setValue(0)
+        except Exception as error:
+            print(f"ERROR loading output: {error}")
+        os.system(f"rm -rf {output_path}/")
 
-        for filename, widget in self.linuxcnc.items():
-            if filename == "rio.c":
-                file_content = open(f"Output/{config_name}/LinuxCNC/Component/{filename}", "r").read()
-            else:
-                file_content = open(f"Output/{config_name}/LinuxCNC/Configuration/{filename}", "r").read()
-            widget.clear()
-            widget.insertPlainText(file_content)
-            #widget.verticalScrollBar().setValue(0)
+    def generate(self, output_path=None):
+        config = self.clean_config()
+        if not output_path:
+            output_path = "Output"
+        try:
+            os.system(f"{riocore_path}/../bin/rio-generator {self.config_file} {output_path}")
+            config_name = self.config.get("name")
+        except Exception as error:
+            print(f"ERROR generating output: {error}")
 
     def save_config(self, widget):
         print("save...")
@@ -1465,6 +1473,7 @@ class WinForm(QWidget):
         name = file_dialog.getSaveFileName(self, "Save File", self.config_file, "json (*.json)")
         if name[0]:
             self.save_config_as(name[0])
+            self.generate("Output")
 
     def save_config_as(self, filename):
         config = self.clean_config()
