@@ -1129,10 +1129,13 @@ class WinForm(QWidget):
                         var_setup["options"] = ["ON", "OFF"]
                         var_setup["tooltip"] = "Use two pass processing for loading HAL comps."
 
+                    key_title = key
+                    if "|" in key:
+                        key_title = f"{key.split('|')[0]} ({key.split('|')[1]})"
                     aitem = MyStandardItem()
                     lcncsec_view.appendRow(
                         [
-                            MyStandardItem(key, help_text=var_setup.get("tooltip")),
+                            MyStandardItem(key_title, help_text=var_setup.get("tooltip")),
                             aitem,
                         ]
                     )
