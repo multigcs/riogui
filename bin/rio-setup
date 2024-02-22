@@ -1101,7 +1101,7 @@ class WinForm(QWidget):
 
         gui = self.config.get("gui", "axis")
         machinetype = self.config.get("machinetype", "mill")
-        for section, section_data in riocore.generator.LinuxCNC.LinuxCNC.ini_defaults(gui, machinetype).items():
+        for section, section_data in riocore.generator.LinuxCNC.LinuxCNC.ini_defaults(self.config).items():
             if section not in ini_config:
                 ini_config[section] = {}
             section_config = ini_config[section]
