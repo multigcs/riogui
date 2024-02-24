@@ -1249,7 +1249,7 @@ class WinForm(QWidget):
         plugin_instance = self.plugins.load_plugin(plugin_id, self.config["plugins"][plugin_id], self.config)
         if plugin_instance:
             for pin_name, pin_defaults in plugin_instance.PINDEFAULTS.items():
-                self.config["plugins"][plugin_id]["pins"][pin_name] = {"pin": "xxx"}
+                self.config["plugins"][plugin_id]["pins"][pin_name] = {"pin": ""}
             self.tree_add_plugin(self.tree_plugins, plugin_instance, expand=True)
         self.display()
 
