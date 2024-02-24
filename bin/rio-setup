@@ -678,6 +678,8 @@ class WinForm(QWidget):
         num = 0
         in_use = set()
 
+        self.generate_cb(preview=True)
+
         fpga_name = f"{self.config.get('boardcfg')}"
 
         gAll = graphviz.Digraph("G", format="svg")
@@ -1447,10 +1449,13 @@ class WinForm(QWidget):
         widget.insertPlainText(logdata)
         # widget.verticalScrollBar().setValue(0)
 
-    def generate_cb(self):
-        output_path = "OutputTMP"
+    def generate_cb(self, preview=False):
+        self.info_widget.setText("generate...")
+        output_path = "Output"
+        if preview:
+            output_path = "OutputTMP"
         config_name = self.config.get("name")
-        self.generate(output_path)
+        self.generate(output_path, preview=preview)
         try:
             for filename, widget in self.gateware.items():
                 if filename != "Compile-Output":
@@ -1466,14 +1471,19 @@ class WinForm(QWidget):
                 widget.insertPlainText(file_content)
         except Exception as error:
             print(f"ERROR loading output: {error}")
-        os.system(f"rm -rf {output_path}/")
+        if preview:
+            os.system(f"rm -rf {output_path}/")
+        self.info_widget.setText("generate...done")
 
-    def generate(self, output_path=None):
+    def generate(self, output_path=None, preview=False):
         config = self.clean_config()
         if not output_path:
             output_path = "Output"
         try:
-            os.system(f"{riocore_path}/../bin/rio-generator {self.config_file} {output_path}")
+            if preview:
+                os.system(f"{riocore_path}/../bin/rio-generator -p {self.config_file} {output_path} >/dev/null")
+            else:
+                os.system(f"{riocore_path}/../bin/rio-generator {self.config_file} {output_path}")
             config_name = self.config.get("name")
         except Exception as error:
             print(f"ERROR generating output: {error}")
