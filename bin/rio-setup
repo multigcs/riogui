@@ -252,7 +252,7 @@ class edit_combobox(QComboBox):
             self.setCurrentIndex(options.index(default))
         else:
             self.setCurrentIndex(options.index(""))
-        self.activated.connect(self.change)
+        self.editTextChanged.connect(self.change)
         self.setFocusPolicy(Qt.StrongFocus)
 
     def wheelEvent(self, *args, **kwargs):
@@ -364,7 +364,7 @@ class WinForm(QWidget):
         self.jsonpreview = QPlainTextEdit()
         self.jsonpreview.clear()
         self.jsonpreview.insertPlainText("...")
-        #self.jsonpreview.verticalScrollBar().setValue(0)
+        # self.jsonpreview.verticalScrollBar().setValue(0)
         self.tabwidget.addTab(self.jsonpreview, "Json-Preview")
 
         self.gateware_tabwidget = QTabWidget()
@@ -389,12 +389,12 @@ class WinForm(QWidget):
         for filename, widget in self.gateware.items():
             widget.clear()
             widget.insertPlainText("Please press generate ...")
-            #widget.verticalScrollBar().setValue(0)
+            # widget.verticalScrollBar().setValue(0)
             self.gateware_tabwidget.addTab(widget, filename)
         for filename, widget in self.linuxcnc.items():
             widget.clear()
             widget.insertPlainText("Please press generate ...")
-            #widget.verticalScrollBar().setValue(0)
+            # widget.verticalScrollBar().setValue(0)
             self.linuxcnc_tabwidget.addTab(widget, filename)
 
         row += 1
@@ -436,6 +436,7 @@ class WinForm(QWidget):
         self.config_load()
         # self.load_tree()
         # self.display()
+        self.config_original = self.clean_config()
 
     def onHeaderClicked(self, logicalIndex):
         logicalIndex += 1
@@ -455,6 +456,10 @@ class WinForm(QWidget):
         # loading json config
         configJsonStr = open(self.config_file, "r").read()
         self.config = json.loads(configJsonStr)
+
+    def closeEvent(self, event):
+        if self.config_original != self.clean_config():
+            self.save_config()
 
     def setup_merge(self, setup, defaults):
         for key, value in defaults.items():
@@ -543,7 +548,11 @@ class WinForm(QWidget):
             if name:
                 title = f"{name} ({plugin_instance.NAME})"
             for pin_name, pin_defaults in plugin_instance.PINDEFAULTS.items():
-                pin_setup = plugin_instance.plugin_setup.get("pins", {}).get(pin_name, {})
+                if "pins" not in plugin_instance.plugin_setup:
+                    continue
+                if pin_name not in plugin_instance.plugin_setup["pins"]:
+                    plugin_instance.plugin_setup["pins"][pin_name] = {}
+                pin_setup = plugin_instance.plugin_setup["pins"][pin_name]
                 if not pin_setup and pin_defaults.get("optional") is True:
                     continue
                 pin = pin_setup["pin"]
@@ -663,7 +672,7 @@ class WinForm(QWidget):
         config = self.clean_config()
         self.jsonpreview.clear()
         self.jsonpreview.insertPlainText(json.dumps(config, indent=4))
-        #self.jsonpreview.verticalScrollBar().setValue(0)
+        # self.jsonpreview.verticalScrollBar().setValue(0)
 
     def overview_load(self):
         num = 0
@@ -1045,12 +1054,12 @@ class WinForm(QWidget):
             for col_n, col in enumerate(row):
                 pitem = QTableWidgetItem(col)
                 self.pin_table.setItem(row_n, col_n, pitem)
-        #self.pin_table.resizeColumnToContents(0)
+        # self.pin_table.resizeColumnToContents(0)
 
     def edit_item(self, obj, key, var_setup=None, cb=None):
         if var_setup is None:
             var_setup = {}
-        #if key not in obj and "default" in var_setup:
+        # if key not in obj and "default" in var_setup:
         #    obj[key] = var_setup["default"]
         if var_setup["type"] == "select":
             return edit_combobox(self, obj, key, var_setup.get("options", []), cb=cb, default=var_setup.get("default"))
@@ -1114,7 +1123,7 @@ class WinForm(QWidget):
                 ]
             )
             lcncsec_view = tree_lcncsec.child(tree_lcncsec.rowCount() - 1)
-            #self.treeview.expand(self.model.indexFromItem(lcncsec_view))
+            # self.treeview.expand(self.model.indexFromItem(lcncsec_view))
             for key, value in section_data.items():
                 if value is not None and not isinstance(value, list):
                     var_setup = {"type": type(value), "default": value}
@@ -1436,7 +1445,7 @@ class WinForm(QWidget):
 
         widget.clear()
         widget.insertPlainText(logdata)
-        #widget.verticalScrollBar().setValue(0)
+        # widget.verticalScrollBar().setValue(0)
 
     def generate_cb(self):
         output_path = "OutputTMP"
@@ -1469,7 +1478,7 @@ class WinForm(QWidget):
         except Exception as error:
             print(f"ERROR generating output: {error}")
 
-    def save_config(self, widget):
+    def save_config(self, widget=None):
         print("save...")
         file_dialog = QFileDialog(self)
         file_dialog.setNameFilters(["json (*.json)"])
