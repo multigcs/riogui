@@ -879,7 +879,7 @@ class WinForm(QWidget):
 
                 con_dev = fpga_name
                 con_pin = pin
-                if pin.startswith("EXPANSION"):
+                if pin and pin.startswith("EXPANSION"):
                     con_dev = pin.split("_")[0]
                     con_pin = pin.split("_")[1].replace("[", "").replace("]", "")
 
@@ -917,7 +917,7 @@ class WinForm(QWidget):
 
                 gAll.edge(f"{con_dev}:{con_pin}", f"{title}:{pin_name}", dir=arrow_dir, color=color)
 
-                if ":" not in pin and not pin.startswith("EXPANSION"):
+                if pin and ":" not in pin and not pin.startswith("EXPANSION"):
                     sportsr.append(f"<{pin}>{pin}")
 
                 num += 1
@@ -1011,7 +1011,7 @@ class WinForm(QWidget):
 
                     con_dev = fpga_name
                     con_pin = pin
-                    if pin.startswith("EXPANSION"):
+                    if pin and pin.startswith("EXPANSION"):
                         con_dev = pin.split("_")[0]
                         con_pin = pin.split("_")[1].replace("[", "").replace("]", "")
 
@@ -1255,14 +1255,117 @@ class WinForm(QWidget):
         bitem = MyStandardItem()
         self.model.appendRow(
             [
-                MyStandardItem("LinuxCNC INI", help_text="LinuxCNC INI-Defaults"),
+                MyStandardItem("LinuxCNC", help_text="LinuxCNC specific configurations"),
                 bitem,
             ]
         )
-        tree_lcncsec = self.model.item(self.model.rowCount() - 1)
-
+        tree_lcnc = self.model.item(self.model.rowCount() - 1)
         if "linuxcnc" not in self.config:
             self.config["linuxcnc"] = {}
+
+        bitem = MyStandardItem()
+        tree_lcnc.appendRow(
+            [
+                MyStandardItem("Joypad", help_text="LinuxCNC Joypad-Setup"),
+                bitem,
+            ]
+        )
+        tree_lcncjoypad = tree_lcnc.child(tree_lcnc.rowCount() - 1)
+        if "joypad" not in self.config["linuxcnc"]:
+            self.config["linuxcnc"]["joypad"] = {}
+        joypad_config = self.config["linuxcnc"]["joypad"]
+        if joypad_config:
+            joypad_buttons = ["btn-base", "btn-base2", "btn-top", "btn-top2"]
+            for key, var_setup in {
+                "enable": {"type": bool, "default": False},
+                "name": {"type": str},
+                "btn_slow": {"type": "select", "options": joypad_buttons},
+                "btn_medium": {"type": "select", "options": joypad_buttons},
+                "btn_fast": {"type": "select", "options": joypad_buttons},
+            }.items():
+                aitem = MyStandardItem()
+                tree_lcncjoypad.appendRow(
+                    [
+                        MyStandardItem(key.title()),
+                        aitem,
+                    ]
+                )
+                self.treeview.setIndexWidget(aitem.index(), self.edit_item(joypad_config, key, var_setup))
+
+        bitem = MyStandardItem()
+        tree_lcnc.appendRow(
+            [
+                MyStandardItem("Camera", help_text="LinuxCNC Camera-Setup"),
+                bitem,
+            ]
+        )
+        tree_lcnccamera = tree_lcnc.child(tree_lcnc.rowCount() - 1)
+        if "camera" not in self.config["linuxcnc"]:
+            self.config["linuxcnc"]["camera"] = []
+        camera_config = self.config["linuxcnc"]["camera"]
+        for camera_num, camera in enumerate(camera_config):
+            bitem = MyStandardItem()
+            tree_lcnccamera.appendRow(
+                [
+                    MyStandardItem(f"Camera {camera_num}", help_text=f"Camera {camera_num} Setup"),
+                    bitem,
+                ]
+            )
+            tree_lcnccamera_n = tree_lcnccamera.child(tree_lcnccamera.rowCount() - 1)
+
+            for key, var_setup in {
+                "enable": {"type": bool, "default": False},
+                "device": {"type": "str", "default": f"/dev/video{camera_num}"},
+                "tabname": {"type": str, "default": f"Camera-{camera_num}"},
+            }.items():
+                aitem = MyStandardItem()
+                tree_lcnccamera_n.appendRow(
+                    [
+                        MyStandardItem(key.title()),
+                        aitem,
+                    ]
+                )
+                self.treeview.setIndexWidget(aitem.index(), self.edit_item(camera, key, var_setup))
+
+            bitem = MyStandardItem()
+            tree_lcnccamera_n.appendRow(
+                [
+                    MyStandardItem("Offset", help_text="Camera offsets"),
+                    bitem,
+                ]
+            )
+            tree_lcnccamera_n_offsets = tree_lcnccamera_n.child(tree_lcnccamera_n.rowCount() - 1)
+            if "offset" not in camera:
+                camera["offset"] = {}
+
+            for offset_axis, offset_var_setup in {
+                "X": {"type": int, "default": 0},
+                "Y": {"type": int, "default": 0},
+                "Z": {"type": int, "default": 0},
+                "A": {"type": int, "default": 0},
+                "B": {"type": int, "default": 0},
+                "C": {"type": int, "default": 0},
+                "U": {"type": int, "default": 0},
+                "V": {"type": int, "default": 0},
+                "W": {"type": int, "default": 0},
+            }.items():
+                aitem = MyStandardItem()
+                tree_lcnccamera_n_offsets.appendRow(
+                    [
+                        MyStandardItem(offset_axis),
+                        aitem,
+                    ]
+                )
+                self.treeview.setIndexWidget(aitem.index(), self.edit_item(camera["offset"], offset_axis, offset_var_setup))
+
+        bitem = MyStandardItem()
+        tree_lcnc.appendRow(
+            [
+                MyStandardItem("INI-Defaults", help_text="LinuxCNC INI-Defaults"),
+                bitem,
+            ]
+        )
+        tree_lcncini = tree_lcnc.child(tree_lcnc.rowCount() - 1)
         if "ini" not in self.config["linuxcnc"]:
             self.config["linuxcnc"]["ini"] = {}
         ini_config = self.config["linuxcnc"]["ini"]
@@ -1275,14 +1378,13 @@ class WinForm(QWidget):
             section_config = ini_config[section]
 
             aitem = MyStandardItem()
-            tree_lcncsec.appendRow(
+            tree_lcncini.appendRow(
                 [
                     MyStandardItem(section),
                     MyStandardItem(""),
                 ]
             )
-            lcncsec_view = tree_lcncsec.child(tree_lcncsec.rowCount() - 1)
-            # self.treeview.expand(self.model.indexFromItem(lcncsec_view))
+            lcncsec_view = tree_lcncini.child(tree_lcncini.rowCount() - 1)
             for key, value in section_data.items():
                 if value is not None and not isinstance(value, list):
                     var_setup = {"type": type(value), "default": value}
