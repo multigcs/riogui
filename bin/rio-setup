@@ -804,6 +804,8 @@ class WinForm(QWidget):
                 self.struct_clean(data[key])
                 if not data[key]:
                     del data[key]
+            elif data[key] is None:
+                del data[key]
 
     def clean_config(self, config_unclean):
         config = copy.deepcopy(config_unclean)
@@ -1406,7 +1408,11 @@ class WinForm(QWidget):
         plugin_instance = self.plugins.load_plugin(plugin_id, self.config["plugins"][plugin_id], self.config)
         if plugin_instance:
             for pin_name, pin_defaults in plugin_instance.PINDEFAULTS.items():
-                self.config["plugins"][plugin_id]["pins"][pin_name] = {"pin": ""}
+                optional = pin_defaults.get("optional")
+                if not optional is True:
+                    self.config["plugins"][plugin_id]["pins"][pin_name] = {"pin": ""}
+                else:
+                    self.config["plugins"][plugin_id]["pins"][pin_name] = {"pin": None}
             self.tree_add_plugin(self.tree_plugins, plugin_instance, expand=True)
         self.display()
 
@@ -1933,6 +1939,7 @@ class WinForm(QWidget):
             help_text = f"pin location for {direction} pin: {pin_name}"
             if optional:
                 help_text = f"{help_text} (optional)"
+
             pin_title = f"{pin_name} ({direction})"
             citem = MyStandardItem()
             pins_view.appendRow(
@@ -1942,7 +1949,7 @@ class WinForm(QWidget):
                 ]
             )
             if not nopins:
-                self.treeview.setIndexWidget(citem.index(), self.edit_item(pin_setup, "pin", {"type": "select", "options": self.pinlist}))
+                self.treeview.setIndexWidget(citem.index(), self.edit_item(pin_setup, "pin", {"type": "select", "options": self.pinlist, "default": ""}))
 
             pin_view = pins_view.child(pins_view.rowCount() - 1)
             if expand:
