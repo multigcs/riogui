@@ -521,14 +521,14 @@ class WinForm(QWidget):
             self.info_saved.setChecked(True)
             self.button_generate.setEnabled(True)
 
-        # checking generated config
-        ret = os.system(f"diff {self.config_file} Output/{config_name}/.config.json >/dev/null")
-        if ret == 0:
-            self.info_generated.setChecked(True)
-            self.button_compile.setEnabled(True)
-        else:
-            self.info_generated.setChecked(False)
-            self.button_compile.setEnabled(False)
+            # checking generated config
+            ret = os.system(f"diff {self.config_file} Output/{config_name}/.config.json >/dev/null")
+            if ret == 0:
+                self.info_generated.setChecked(True)
+                self.button_compile.setEnabled(True)
+            else:
+                self.info_generated.setChecked(False)
+                self.button_compile.setEnabled(False)
 
         # checking gateware
         hash_compiled = ""
