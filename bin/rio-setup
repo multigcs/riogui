@@ -75,6 +75,7 @@ STYLESHEET_CHECKBOX_GREEN_RED = """
     }
 """
 
+
 class MyQSvgWidget(QtSvg.QSvgWidget):
     def mousePressEvent(self, event):
         size = self.size()
@@ -431,7 +432,6 @@ class WinForm(QWidget):
         info_layout = QHBoxLayout(info_container)
         layout.addWidget(info_container, 2, 1)
 
-
         self.info_saved = QCheckBox("Saved")
         self.info_saved.setStyleSheet(STYLESHEET_CHECKBOX_GREEN_RED)
         info_layout.addWidget(self.info_saved)
@@ -453,7 +453,6 @@ class WinForm(QWidget):
         self.info_flashed.setChecked(False)
 
         info_layout.addStretch()
-
 
         self.button_save = QPushButton("Save")
         self.button_save.clicked.connect(self.save_config_cb)
@@ -499,11 +498,9 @@ class WinForm(QWidget):
         self.config_original = self.clean_config(self.config)
         self.config_checked = {}
 
-
         self.timer = QTimer()
         self.timer.timeout.connect(self.runTimer)
         self.timer.start(1000)
-
 
     def check_status(self):
         self.config_checked = self.clean_config(self.config)
@@ -551,9 +548,6 @@ class WinForm(QWidget):
         else:
             self.info_flashed.setChecked(False)
 
-
-
-
     def runTimer(self):
         if self.config_checked != self.clean_config(self.config):
             self.check_status()
@@ -565,7 +559,7 @@ class WinForm(QWidget):
             widget.clear()
             duration = time.time() - self.compile_start
 
-            if self.compile_sub.poll() is not None: 
+            if self.compile_sub.poll() is not None:
                 widget.insertPlainText(logdata)
                 self.compile_sub = None
                 self.check_status()
@@ -586,7 +580,7 @@ class WinForm(QWidget):
             widget.clear()
             duration = time.time() - self.flash_start
 
-            if self.flash_sub.poll() is not None: 
+            if self.flash_sub.poll() is not None:
                 widget.insertPlainText(logdata)
                 self.flash_sub = None
                 self.check_status()
@@ -599,8 +593,6 @@ class WinForm(QWidget):
                 self.button_flash.setEnabled(False)
                 self.button_flash.setEnabled(False)
                 self.info_widget.setText(f"flash...({duration:0.1f}s)")
-
-
 
     def onHeaderClicked(self, logicalIndex):
         logicalIndex += 1
