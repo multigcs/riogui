@@ -456,9 +456,14 @@ class WinForm(QWidget):
 
 
         self.button_save = QPushButton("Save")
-        self.button_save.clicked.connect(self.save_config)
+        self.button_save.clicked.connect(self.save_config_cb)
         self.button_save.setStyleSheet(STYLESHEET_BUTTON)
         button_layout.addWidget(self.button_save)
+
+        self.button_save_as = QPushButton("Save as")
+        self.button_save_as.clicked.connect(self.save_config_as)
+        self.button_save_as.setStyleSheet(STYLESHEET_BUTTON)
+        button_layout.addWidget(self.button_save_as)
 
         self.button_generate = QPushButton("Generate")
         self.button_generate.clicked.connect(self.generate_cb)
@@ -504,6 +509,7 @@ class WinForm(QWidget):
         self.config_checked = self.clean_config(self.config)
         config_name = self.config.get("name")
         self.button_save.setEnabled(True)
+        self.button_save_as.setEnabled(True)
 
         if self.config_original != self.clean_config(self.config):
             self.info_saved.setChecked(False)
@@ -515,14 +521,14 @@ class WinForm(QWidget):
             self.info_saved.setChecked(True)
             self.button_generate.setEnabled(True)
 
-            # checking generated config
-            ret = os.system(f"diff {self.config_file} Output/{config_name}/.config.json")
-            if ret == 0:
-                self.info_generated.setChecked(True)
-                self.button_compile.setEnabled(True)
-            else:
-                self.info_generated.setChecked(False)
-                self.button_compile.setEnabled(False)
+        # checking generated config
+        ret = os.system(f"diff {self.config_file} Output/{config_name}/.config.json >/dev/null")
+        if ret == 0:
+            self.info_generated.setChecked(True)
+            self.button_compile.setEnabled(True)
+        else:
+            self.info_generated.setChecked(False)
+            self.button_compile.setEnabled(False)
 
         # checking gateware
         hash_compiled = ""
@@ -567,6 +573,7 @@ class WinForm(QWidget):
             else:
                 widget.insertPlainText(logdata)
                 self.button_save.setEnabled(False)
+                self.button_save_as.setEnabled(False)
                 self.button_generate.setEnabled(False)
                 self.button_compile.setEnabled(False)
                 self.button_flash.setEnabled(False)
@@ -587,6 +594,7 @@ class WinForm(QWidget):
             else:
                 widget.insertPlainText(logdata)
                 self.button_save.setEnabled(False)
+                self.button_save_as.setEnabled(False)
                 self.button_generate.setEnabled(False)
                 self.button_flash.setEnabled(False)
                 self.button_flash.setEnabled(False)
@@ -615,7 +623,7 @@ class WinForm(QWidget):
 
     def closeEvent(self, event):
         if self.config_original != self.clean_config(self.config):
-            self.save_config()
+            self.save_config_as()
 
     def setup_merge(self, setup, defaults):
         for key, value in defaults.items():
@@ -635,7 +643,7 @@ class WinForm(QWidget):
     def testgui(self):
         print("starting testgui..", f"{os.path.dirname(__file__)}/rio-test")
         filename = f"{self.config_file}.test-gui-temp.json"
-        self.save_config_as(filename)
+        self.save_config(filename)
         testgui_path = f"{os.path.dirname(__file__)}/rio-test"
         os.system(f"({testgui_path} {filename} ; rm {filename}) &")
 
@@ -1665,22 +1673,24 @@ class WinForm(QWidget):
         except Exception as error:
             print(f"ERROR generating output: {error}")
 
-    def save_config(self, widget=None):
+    def save_config_as(self, widget=None):
         print("save...")
         file_dialog = QFileDialog(self)
         file_dialog.setNameFilters(["json (*.json)"])
         name = file_dialog.getSaveFileName(self, "Save File", self.config_file, "json (*.json)")
         if name[0]:
-            self.save_config_as(name[0])
+            self.save_config(name[0])
             self.generate("Output")
 
-    def save_config_as(self, filename):
+    def save_config_cb(self):
+        self.save_config(self.config_file)
+
+    def save_config(self, filename):
         config = self.clean_config(self.config)
         open(filename, "w").write(json.dumps(config, indent=4))
         self.config_file = filename
         self.config_original = config
-        self.config_checked = config
-        self.info_saved.setChecked(True)
+        self.check_status()
 
     def tree_add_plugin(self, parent, plugin_instance, nopins=False, expand=False):
         name = plugin_instance.plugin_setup.get("name")
