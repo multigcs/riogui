@@ -1715,6 +1715,13 @@ class WinForm(QWidget):
             },
         }
 
+        for key, value in riocore.generator.LinuxCNC.LinuxCNC.JOINT_DEFAULTS.items():
+            key = key.lower()
+            if key == "scale_out":
+                key = "scale"
+            if key in joint_options:
+                joint_options[key.lower()]["default"] = value
+
         for option, option_setup in joint_options.items():
             help_text = f"{option} config"
             citem = MyStandardItem()
