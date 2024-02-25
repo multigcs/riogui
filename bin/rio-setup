@@ -388,13 +388,11 @@ class WinForm(QWidget):
 
         for filename, widget in self.gateware.items():
             widget.clear()
-            widget.insertPlainText("Please press generate ...")
-            # widget.verticalScrollBar().setValue(0)
+            widget.insertPlainText("")
             self.gateware_tabwidget.addTab(widget, filename)
         for filename, widget in self.linuxcnc.items():
             widget.clear()
-            widget.insertPlainText("Please press generate ...")
-            # widget.verticalScrollBar().setValue(0)
+            widget.insertPlainText("")
             self.linuxcnc_tabwidget.addTab(widget, filename)
 
         row += 1
@@ -622,6 +620,7 @@ class WinForm(QWidget):
 
     def display(self):
         try:
+            self.generate_cb(preview=True)
             self.overview_load()
             self.pin_table_load()
             self.json_preview()
@@ -677,9 +676,6 @@ class WinForm(QWidget):
     def overview_load(self):
         num = 0
         in_use = set()
-
-        self.generate_cb(preview=True)
-
         fpga_name = f"{self.config.get('boardcfg')}"
 
         gAll = graphviz.Digraph("G", format="svg")
@@ -1481,7 +1477,9 @@ class WinForm(QWidget):
             output_path = "Output"
         try:
             if preview:
-                os.system(f"{riocore_path}/../bin/rio-generator -p {self.config_file} {output_path} >/dev/null")
+                open(f"{self.config_file}_tmp.json", "w").write(json.dumps(config, indent=4))
+                os.system(f"{riocore_path}/../bin/rio-generator -p {self.config_file}_tmp.json {output_path} >/dev/null")
+                os.system(f"rm {self.config_file}_tmp.json")
             else:
                 os.system(f"{riocore_path}/../bin/rio-generator {self.config_file} {output_path}")
             config_name = self.config.get("name")
@@ -1500,6 +1498,8 @@ class WinForm(QWidget):
     def save_config_as(self, filename):
         config = self.clean_config()
         open(filename, "w").write(json.dumps(config, indent=4))
+        self.config_file = filename
+        self.config_original = config
 
     def tree_add_plugin(self, parent, plugin_instance, nopins=False, expand=False):
         name = plugin_instance.plugin_setup.get("name")
