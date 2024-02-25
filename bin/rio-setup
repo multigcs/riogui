@@ -10,6 +10,7 @@ import importlib
 import json
 import os
 import re
+import subprocess
 import sys
 import time
 import traceback
@@ -360,6 +361,11 @@ class WinForm(QWidget):
         layout.addWidget(self.tabwidget, 0, 1)
         self.gateware_hash = None
 
+        self.compile_sub = None
+        self.compile_start = 0
+        self.flash_sub = None
+        self.flash_start = 0
+
         self.pin_table = QTableWidget()
         self.pin_table.setColumnCount(6)
         self.pin_table.setHorizontalHeaderItem(0, QTableWidgetItem("Pin"))
@@ -395,6 +401,7 @@ class WinForm(QWidget):
             "rio.v": QPlainTextEdit(),
             "Makefile": QPlainTextEdit(),
             "Compile-Output": QPlainTextEdit(),
+            "Flash-Output": QPlainTextEdit(),
         }
         self.linuxcnc = {
             "rio.ini": QPlainTextEdit(),
@@ -450,6 +457,7 @@ class WinForm(QWidget):
 
         self.button_save = QPushButton("Save")
         self.button_save.clicked.connect(self.save_config)
+        self.button_save.setStyleSheet(STYLESHEET_BUTTON)
         button_layout.addWidget(self.button_save)
 
         self.button_generate = QPushButton("Generate")
@@ -495,6 +503,7 @@ class WinForm(QWidget):
     def check_status(self):
         self.config_checked = self.clean_config(self.config)
         config_name = self.config.get("name")
+        self.button_save.setEnabled(True)
 
         if self.config_original != self.clean_config(self.config):
             self.info_saved.setChecked(False)
@@ -542,6 +551,48 @@ class WinForm(QWidget):
     def runTimer(self):
         if self.config_checked != self.clean_config(self.config):
             self.check_status()
+
+        if self.compile_sub is not None:
+            widget = self.gateware["Compile-Output"]
+            config_name = self.config.get("name")
+            logdata = open(f"Output/{config_name}/Gateware/compile.log", "r").read()
+            widget.clear()
+            duration = time.time() - self.compile_start
+
+            if self.compile_sub.poll() is not None: 
+                widget.insertPlainText(logdata)
+                self.compile_sub = None
+                self.check_status()
+                self.info_widget.setText(f"compile...done in {duration:0.1f}s")
+            else:
+                widget.insertPlainText(logdata)
+                self.button_save.setEnabled(False)
+                self.button_generate.setEnabled(False)
+                self.button_compile.setEnabled(False)
+                self.button_flash.setEnabled(False)
+                self.info_widget.setText(f"compile...({duration:0.1f}s)")
+
+        if self.flash_sub is not None:
+            widget = self.gateware["Flash-Output"]
+            config_name = self.config.get("name")
+            logdata = open(f"Output/{config_name}/Gateware/flash.log", "r").read()
+            widget.clear()
+            duration = time.time() - self.flash_start
+
+            if self.flash_sub.poll() is not None: 
+                widget.insertPlainText(logdata)
+                self.flash_sub = None
+                self.check_status()
+                self.info_widget.setText(f"flash...done in {duration:0.1f}s")
+            else:
+                widget.insertPlainText(logdata)
+                self.button_save.setEnabled(False)
+                self.button_generate.setEnabled(False)
+                self.button_flash.setEnabled(False)
+                self.button_flash.setEnabled(False)
+                self.info_widget.setText(f"flash...({duration:0.1f}s)")
+
+
 
     def onHeaderClicked(self, logicalIndex):
         logicalIndex += 1
@@ -1541,17 +1592,17 @@ class WinForm(QWidget):
 
     def flash_cb(self):
         self.tabwidget.setCurrentWidget(self.gateware_tabwidget)
-        self.gateware_tabwidget.setCurrentWidget(self.gateware["Compile-Output"])
+        self.gateware_tabwidget.setCurrentWidget(self.gateware["Flash-Output"])
 
-        widget = self.gateware["Compile-Output"]
+        widget = self.gateware["Flash-Output"]
         config_name = self.config.get("name")
-
-        os.system(f"(cd Output/{config_name}/Gateware/ ; xterm -e 'make load 2>&1 | tee flash.log')")
-        logdata = open(f"Output/{config_name}/Gateware/flash.log", "r").read()
-
         widget.clear()
-        widget.insertPlainText(logdata)
-        self.check_status()
+        widget.insertPlainText("...")
+
+        self.flash_start = time.time()
+        self.flash_sub = subprocess.Popen(f"(cd Output/{config_name}/Gateware/ ; make load 2>&1 | tee flash.log)", shell=True, close_fds=True)
+        self.button_flash.setEnabled(False)
+        self.info_widget.setText("flashing...")
 
     def compile_cb(self):
         self.tabwidget.setCurrentWidget(self.gateware_tabwidget)
@@ -1559,13 +1610,13 @@ class WinForm(QWidget):
 
         widget = self.gateware["Compile-Output"]
         config_name = self.config.get("name")
-
-        os.system(f"(cd Output/{config_name}/Gateware/ ; xterm -e 'make clean all 2>&1 | tee compile.log')")
-        logdata = open(f"Output/{config_name}/Gateware/compile.log", "r").read()
-
         widget.clear()
-        widget.insertPlainText(logdata)
-        self.check_status()
+        widget.insertPlainText("...")
+
+        self.compile_start = time.time()
+        self.compile_sub = subprocess.Popen(f"(cd Output/{config_name}/Gateware/ ; make clean all 2>&1 | tee compile.log)", shell=True, close_fds=True)
+        self.button_compile.setEnabled(False)
+        self.info_widget.setText("compiling...")
 
     def generate_cb(self, preview=False):
         self.info_widget.setText("generate...")
@@ -1576,7 +1627,7 @@ class WinForm(QWidget):
         self.generate(output_path, preview=preview)
         try:
             for filename, widget in self.gateware.items():
-                if filename != "Compile-Output":
+                if not filename.endswith("-Output"):
                     file_content = open(f"{output_path}/{config_name}/Gateware/{filename}", "r").read()
                     widget.clear()
                     widget.insertPlainText(file_content)
