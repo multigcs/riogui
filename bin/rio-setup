@@ -1789,7 +1789,6 @@ class WinForm(QWidget):
             else:
                 os.system(f"{riocore_path}/../bin/rio-generator {self.config_file} {output_path}")
                 self.check_status()
-            config_name = self.config.get("name")
         except Exception as error:
             print(f"ERROR generating output: {error}")
 
@@ -1800,17 +1799,19 @@ class WinForm(QWidget):
         name = file_dialog.getSaveFileName(self, "Save File", self.config_file, "json (*.json)")
         if name[0]:
             self.save_config(name[0])
+            self.config_file = filename
+            self.config_original = config
             self.generate("Output")
+            self.check_status()
 
     def save_config_cb(self):
         self.save_config(self.config_file)
+        self.config_original = config
+        self.check_status()
 
     def save_config(self, filename):
         config = self.clean_config(self.config)
         open(filename, "w").write(json.dumps(config, indent=4))
-        self.config_file = filename
-        self.config_original = config
-        self.check_status()
 
     def tree_add_plugin(self, parent, plugin_instance, nopins=False, expand=False):
         name = plugin_instance.plugin_setup.get("name")
