@@ -138,7 +138,7 @@ class WinForm(QWidget):
             device.addItem(path)
         device.activated.connect(target_check)
 
-        ip = "192.168.10.193"
+        ip = "192.168.10.194"
         port = 2390
         protocol = self.project.config["jdata"].get("protocol")
         if protocol:
@@ -215,7 +215,7 @@ class WinForm(QWidget):
 
             txdata = self.project.txdata_get()
             if args.debug:
-                print("tx:", txdata)
+                print(f"tx ({len(txdata*8)}): {txdata}")
 
             start = time.time()
             rxdata = self.project.transfare(txdata)
