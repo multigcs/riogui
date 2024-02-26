@@ -676,8 +676,9 @@ class WinForm(QWidget):
                 self.setup_merge(module_setup[plugin_name], plugin_config)
                 if "pins" in module_setup[plugin_name]:
                     for pin in module_setup[plugin_name]["pins"]:
-                        module_setup[plugin_name]["pins"][pin]["pin_mapped"] = module_setup[plugin_name]["pins"][pin]["pin"]
-                        del module_setup[plugin_name]["pins"][pin]["pin"]
+                        if "pin" in module_setup[plugin_name]["pins"][pin]:
+                            module_setup[plugin_name]["pins"][pin]["pin_mapped"] = module_setup[plugin_name]["pins"][pin]["pin"]
+                            del module_setup[plugin_name]["pins"][pin]["pin"]
 
                 mplugins.load_plugin(plugin_id, module_setup[plugin_name], self.config)
 
@@ -1299,6 +1300,12 @@ class WinForm(QWidget):
                 bitem,
             ]
         )
+
+        button = QPushButton("add camera")
+        button.clicked.connect(self.add_camera)
+        button.setMaximumSize(button.sizeHint())
+        self.treeview.setIndexWidget(bitem.index(), button)
+
         tree_lcnccamera = tree_lcnc.child(tree_lcnc.rowCount() - 1)
         if "camera" not in self.config["linuxcnc"]:
             self.config["linuxcnc"]["camera"] = []
@@ -1516,6 +1523,19 @@ class WinForm(QWidget):
                 else:
                     self.config["plugins"][plugin_id]["pins"][pin_name] = {"pin": None}
             self.tree_add_plugin(self.tree_plugins, plugin_instance, expand=True)
+        self.display()
+
+    def add_camera(self, widget):
+        if "camera" not in self.config["linuxcnc"]:
+            self.config["linuxcnc"]["camera"] = []
+        camera_config = self.config["linuxcnc"]["camera"]
+        camera_num = len(camera_config)
+        camera_config.append({
+            "enable": False,
+            "device": f"/dev/video{camera_num}",
+            "tabname": f"Camera-{camera_num}",
+        })
+        self.load_tree()
         self.display()
 
     def add_module(self, widget):
