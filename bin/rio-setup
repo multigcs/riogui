@@ -1800,13 +1800,13 @@ class WinForm(QWidget):
         if name[0]:
             self.save_config(name[0])
             self.config_file = filename
-            self.config_original = config
+            self.config_original = self.clean_config(self.config)
             self.generate("Output")
             self.check_status()
 
     def save_config_cb(self):
         self.save_config(self.config_file)
-        self.config_original = config
+        self.config_original = self.clean_config(self.config)
         self.check_status()
 
     def save_config(self, filename):
