@@ -1793,20 +1793,20 @@ class WinForm(QWidget):
             print(f"ERROR generating output: {error}")
 
     def save_config_as(self, widget=None):
-        print("save...")
         file_dialog = QFileDialog(self)
         file_dialog.setNameFilters(["json (*.json)"])
         name = file_dialog.getSaveFileName(self, "Save File", self.config_file, "json (*.json)")
         if name[0]:
             self.save_config(name[0])
-            self.config_file = filename
+            self.config_file = name[0]
             self.config_original = self.clean_config(self.config)
-            self.generate("Output")
+            self.info_widget.setText(f"Saved as: {os.path.basename(name[0])}")
             self.check_status()
 
     def save_config_cb(self):
         self.save_config(self.config_file)
         self.config_original = self.clean_config(self.config)
+        self.info_widget.setText(f"Saved as: {os.path.basename(self.config_file)}")
         self.check_status()
 
     def save_config(self, filename):
