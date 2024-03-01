@@ -1530,11 +1530,13 @@ class WinForm(QWidget):
             self.config["linuxcnc"]["camera"] = []
         camera_config = self.config["linuxcnc"]["camera"]
         camera_num = len(camera_config)
-        camera_config.append({
-            "enable": False,
-            "device": f"/dev/video{camera_num}",
-            "tabname": f"Camera-{camera_num}",
-        })
+        camera_config.append(
+            {
+                "enable": False,
+                "device": f"/dev/video{camera_num}",
+                "tabname": f"Camera-{camera_num}",
+            }
+        )
         self.load_tree()
         self.display()
 
