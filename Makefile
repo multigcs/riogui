@@ -7,7 +7,7 @@ format:
 	find ./bin/ -type f | xargs -r -l ruff format
 
 check:
-	find ./bin/ -type f | grep ".py$$" | xargs -r -l flake8 --ignore S108,S607,S605,F401,F403,W291,W503 --max-line-length 200
+	find ./bin/ -type f | xargs -r -l ruff check
 
 dist:
 	python3 setup.py sdist
