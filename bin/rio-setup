@@ -13,17 +13,14 @@ import re
 import subprocess
 import sys
 import time
-import traceback
 from functools import partial
-from struct import *
 
 import graphviz
 import riocore
 from PyQt5 import QtGui, QtSvg
-from PyQt5.QtCore import QDateTime, QRect, QSize, Qt, QTimer
-from PyQt5.QtGui import QColor, QFont, QStandardItem, QStandardItemModel
+from PyQt5.QtCore import QRect, Qt, QTimer
+from PyQt5.QtGui import QStandardItem, QStandardItemModel
 from PyQt5.QtWidgets import (
-    QAbstractItemView,
     QApplication,
     QCheckBox,
     QComboBox,
@@ -36,11 +33,9 @@ from PyQt5.QtWidgets import (
     QLabel,
     QLineEdit,
     QListWidget,
-    QMessageBox,
     QPlainTextEdit,
     QPushButton,
     QScrollArea,
-    QSlider,
     QSpinBox,
     QTableWidget,
     QTableWidgetItem,
@@ -330,7 +325,7 @@ class modifier_selector(QComboBox):
 class WinForm(QWidget):
     def __init__(self, args, parent=None):
         super(WinForm, self).__init__(parent)
-        self.setWindowTitle(f"LinuxCNC-RIO - Setup-GUI")
+        self.setWindowTitle("LinuxCNC-RIO - Setup-GUI")
         self.setMinimumWidth(1400)
         self.setMinimumHeight(900)
         self.setStyleSheet(STYLESHEET)
@@ -669,7 +664,6 @@ class WinForm(QWidget):
 
             mplugins = riocore.Plugins()
             for plugin_id, plugin_config in enumerate(module_defaults.get("plugins", [])):
-                plugin_type = plugin_config.get("type")
                 plugin_name = plugin_config.get("name")
                 if plugin_name not in module_setup:
                     module_setup[plugin_name] = {}
@@ -691,7 +685,6 @@ class WinForm(QWidget):
         # loading plugins
         self.plugins = riocore.Plugins()
         for plugin_id, plugin_config in enumerate(self.config.get("plugins", [])):
-            plugin_type = plugin_config.get("type")
             self.plugins.load_plugin(plugin_id, plugin_config, self.config)
 
         self.items = {}
@@ -700,10 +693,6 @@ class WinForm(QWidget):
         self.pinmapping = {}
         self.pinmapping_rev = {}
         for plugin_instance in self.plugins.plugin_instances:
-            name = plugin_instance.plugin_setup.get("name")
-            title = plugin_instance.NAME
-            if name:
-                title = f"{name} ({plugin_instance.NAME})"
             for pin_name, pin_defaults in plugin_instance.PINDEFAULTS.items():
                 if "pins" not in plugin_instance.plugin_setup:
                     continue
@@ -756,8 +745,8 @@ class WinForm(QWidget):
         load_pins(self.board)
         self.pinlist.sort(key=sort_key)
 
-        boards_path = self.get_path(f"boards/")
-        modules_path = self.get_path(f"modules/")
+        boards_path = self.get_path("boards/")
+        modules_path = self.get_path("modules/")
 
         self.interfaces = []
         for path in glob.glob(f"{riocore_path}/interfaces/*"):
@@ -812,12 +801,6 @@ class WinForm(QWidget):
         config = copy.deepcopy(config_unclean)
         # cleanup
         for module in config.get("modules", []):
-            slot_name = module.get("slot")
-            module_name = module.get("module")
-            module_setup = module.get("setup")
-            module_path = self.get_path(f"modules/{module_name}.json")
-            moduleJsonStr = open(module_path, "r").read()
-            module_defaults = json.loads(moduleJsonStr)
             for name, setup in module.get("setup", {}).items():
                 for pin, pin_setup in setup.get("pins", {}).items():
                     if "pin_mapped" in pin_setup:
@@ -837,7 +820,6 @@ class WinForm(QWidget):
 
     def overview_load(self):
         num = 0
-        in_use = set()
         fpga_name = f"{self.config.get('boardcfg')}"
 
         gAll = graphviz.Digraph("G", format="svg")
@@ -1111,7 +1093,6 @@ class WinForm(QWidget):
 
     def pin_table_load(self):
         self.pin_table.setRowCount(0)
-        num = 0
         in_use = set()
         table_data = []
         for plugin_instance in self.plugins.plugin_instances:
@@ -1377,8 +1358,6 @@ class WinForm(QWidget):
             self.config["linuxcnc"]["ini"] = {}
         ini_config = self.config["linuxcnc"]["ini"]
 
-        gui = self.config.get("gui", "axis")
-        machinetype = self.config.get("machinetype", "mill")
         for section, section_data in riocore.generator.LinuxCNC.LinuxCNC.ini_defaults(self.config).items():
             if section not in ini_config:
                 ini_config[section] = {}
@@ -1518,7 +1497,7 @@ class WinForm(QWidget):
         if plugin_instance:
             for pin_name, pin_defaults in plugin_instance.PINDEFAULTS.items():
                 optional = pin_defaults.get("optional")
-                if not optional is True:
+                if optional is not True:
                     self.config["plugins"][plugin_id]["pins"][pin_name] = {"pin": ""}
                 else:
                     self.config["plugins"][plugin_id]["pins"][pin_name] = {"pin": None}
@@ -1574,7 +1553,6 @@ class WinForm(QWidget):
         if "modules" not in self.config:
             self.config["modules"] = []
 
-        module_id = len(self.config["modules"])
         module_setup = {}
         self.config["modules"].append(
             {
@@ -1587,7 +1565,6 @@ class WinForm(QWidget):
 
         mplugins = riocore.Plugins()
         for plugin_id, plugin_config in enumerate(module_defaults.get("plugins", [])):
-            plugin_type = plugin_config.get("type")
             plugin_name = plugin_config.get("name")
             if plugin_name not in module_setup:
                 module_setup[plugin_name] = {}
@@ -1625,7 +1602,6 @@ class WinForm(QWidget):
     def select_plugin(self):
         def change(combo, info, description, selected):
             plugin_name = combo.currentText()
-            plugin_list = self.plugins.list()
             plugins = riocore.Plugins()
             plugins.load_plugins({"plugins": [{"type": plugin_name}]})
             infotext = plugins.plugin_instances[0].INFO
