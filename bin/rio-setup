@@ -1896,9 +1896,9 @@ class WinForm(QWidget):
                     options.append(halpin)
 
             signal_setup["net"] = {"type": "select", "options": options}
-
             signal_setup["function"] = {"type": str}
-            signal_setup["setp"] = {"type": str, "default": ""}
+            if signal_direction == "output":
+                signal_setup["setp"] = {"type": str, "default": ""}
 
             for option, option_setup in signal_setup.items():
                 help_text = f"{option} config"
