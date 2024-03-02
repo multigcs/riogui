@@ -148,7 +148,8 @@ class edit_float(QDoubleSpinBox):
             del self.obj[self.key]
         if self.cb:
             self.cb(self.value())
-        self.win.display()
+        else:
+            self.win.display()
 
 
 class edit_int(QSpinBox):
@@ -188,7 +189,8 @@ class edit_int(QSpinBox):
             del self.obj[self.key]
         if self.cb:
             self.cb(self.value())
-        self.win.display()
+        else:
+            self.win.display()
 
 
 class edit_text(QLineEdit):
@@ -214,7 +216,8 @@ class edit_text(QLineEdit):
             del self.obj[self.key]
         if self.cb:
             self.cb(self.text())
-        self.win.display()
+        else:
+            self.win.display()
 
 
 class edit_bool(QCheckBox):
@@ -241,7 +244,8 @@ class edit_bool(QCheckBox):
             del self.obj[self.key]
         if self.cb:
             self.cb(self.text())
-        self.win.display()
+        else:
+            self.win.display()
 
 
 class edit_combobox(QComboBox):
@@ -283,7 +287,8 @@ class edit_combobox(QComboBox):
             del self.obj[self.key]
         if self.cb:
             self.cb(self.currentText())
-        self.win.display()
+        else:
+            self.win.display()
 
 
 class modifier_selector(QComboBox):
@@ -371,8 +376,18 @@ class WinForm(QWidget):
         self.pin_table.setHorizontalHeaderItem(3, QTableWidgetItem("Mapping"))
         self.pin_table.setHorizontalHeaderItem(4, QTableWidgetItem("Direction"))
         self.pin_table.setHorizontalHeaderItem(5, QTableWidgetItem("Comment"))
-        self.pin_table.horizontalHeader().sectionClicked.connect(self.onHeaderClicked)
+        self.pin_table.horizontalHeader().sectionClicked.connect(self.onHeaderClickedPins)
         self.pin_table_sort_col = 1
+
+        self.sig_table = QTableWidget()
+        self.sig_table.setColumnCount(5)
+        self.sig_table.setHorizontalHeaderItem(0, QTableWidgetItem("Halname"))
+        self.sig_table.setHorizontalHeaderItem(1, QTableWidgetItem("Dir"))
+        self.sig_table.setHorizontalHeaderItem(2, QTableWidgetItem("Target"))
+        self.sig_table.setHorizontalHeaderItem(3, QTableWidgetItem("Type"))
+        self.sig_table.setHorizontalHeaderItem(4, QTableWidgetItem("Comment"))
+        self.sig_table.horizontalHeader().sectionClicked.connect(self.onHeaderClickedSignals)
+        self.sig_table_sort_col = 1
 
         self.imagew = MyQSvgWidget()
 
@@ -381,6 +396,7 @@ class WinForm(QWidget):
         scroll.setWidgetResizable(True)
         self.tabwidget.addTab(scroll, "Flow")
         self.tabwidget.addTab(self.pin_table, "Pintable")
+        self.tabwidget.addTab(self.sig_table, "Signaltable")
 
         self.jsonpreview = QPlainTextEdit()
         self.jsonpreview.clear()
@@ -494,6 +510,9 @@ class WinForm(QWidget):
         self.config_original = self.clean_config(self.config)
         self.config_checked = {}
 
+        self.request_load_tree = 0
+        self.request_pin_table_load = 0
+        self.request_sig_table_load = 0
         self.timer = QTimer()
         self.timer.timeout.connect(self.runTimer)
         self.timer.start(1000)
@@ -545,6 +564,24 @@ class WinForm(QWidget):
             self.info_flashed.setChecked(False)
 
     def runTimer(self):
+        if self.request_load_tree > 1:
+            self.request_load_tree -= 1
+        elif self.request_load_tree == 1:
+            self.load_tree()
+            self.request_load_tree = 0
+
+        if self.request_pin_table_load > 1:
+            self.request_pin_table_load -= 1
+        elif self.request_pin_table_load == 1:
+            self.pin_table_load()
+            self.request_pin_table_load = 0
+
+        if self.request_sig_table_load > 1:
+            self.request_sig_table_load -= 1
+        elif self.request_sig_table_load == 1:
+            self.sig_table_load()
+            self.request_sig_table_load = 0
+
         if self.config_checked != self.clean_config(self.config):
             self.check_status()
 
@@ -590,7 +627,7 @@ class WinForm(QWidget):
                 self.button_flash.setEnabled(False)
                 self.info_widget.setText(f"flash...({duration:0.1f}s)")
 
-    def onHeaderClicked(self, logicalIndex):
+    def onHeaderClickedPins(self, logicalIndex):
         logicalIndex += 1
         if self.pin_table_sort_col == logicalIndex:
             self.pin_table_sort_col = -logicalIndex
@@ -598,11 +635,16 @@ class WinForm(QWidget):
             self.pin_table_sort_col = logicalIndex
         self.pin_table_load()
 
+    def onHeaderClickedSignals(self, logicalIndex):
+        logicalIndex += 1
+        if self.sig_table_sort_col == logicalIndex:
+            self.sig_table_sort_col = -logicalIndex
+        else:
+            self.sig_table_sort_col = logicalIndex
+        self.sig_table_load()
+
     def itemChanged(self, item):
         pass
-        # print("itemChanged")
-        # if hasattr(item, "edit"):
-        #    item.edit(item)
 
     def json_load(self):
         # loading json config
@@ -765,13 +807,16 @@ class WinForm(QWidget):
                 self.slots.append(slot_name)
 
         self.load_tree()
+        self.pin_table_load()
+        self.sig_table_load()
         self.display()
 
     def display(self):
         try:
             self.generate_cb(preview=True)
+            self.request_pin_table_load = 2
+            self.request_sig_table_load = 2
             self.overview_load()
-            self.pin_table_load()
             self.json_preview()
             self.info_widget.setText(self.config_file)
         except Exception as error:
@@ -1079,6 +1124,96 @@ class WinForm(QWidget):
         # self.imagew.setFixedSize(QSize(800, 600))
         # self.imagew.setFixedSize(self.imagew.renderer().defaultSize())
 
+    def sig_edit_cb(self, widget):
+        self.generate_cb(preview=True)
+        self.request_load_tree = 3
+        self.overview_load()
+        self.json_preview()
+
+    def sig_table_load(self):
+        self.sig_table.setRowCount(0)
+        table_data = []
+
+        def sort_key(a):
+            col = a[idx]
+            numbers = re.findall(r"\d+", col)
+            for number in numbers:
+                col = col.replace(number, f"{int(number):09d}")
+            return col.lower()
+
+        options = []
+
+        for plugin_instance in self.plugins.plugin_instances:
+            plugin_name = plugin_instance.plugin_setup.get("name", plugin_instance.title)
+            plugin_title = plugin_instance.NAME
+            if plugin_name:
+                plugin_title = f"{plugin_name} ({plugin_instance.NAME})"
+
+            if plugin_instance.TYPE == "expansion":
+                title = plugin_instance.expansion_prefix
+
+            for signal_name, signal_config in plugin_instance.signals().items():
+                signal_setup = signal_config.get("setup", {})
+                signal_direction = signal_config["direction"]
+                signal_halname = signal_config["halname"]
+                is_bool = signal_config.get("bool", False)
+                htype = "bit" if is_bool else "float"
+
+                if "userconfig" not in signal_config:
+                    signal_config["userconfig"] = {}
+                userconfig = signal_config["userconfig"]
+                signal_net = userconfig.get("net", "")
+                signal_function = userconfig.get("function", "")
+                signal_setp = str(userconfig.get("setp", ""))
+
+                key = "net"
+                if signal_function:
+                    key = "function"
+                elif signal_setp:
+                    key = "setp"
+
+                if key == "function":
+                    widget = self.edit_item(userconfig, "function", {"type": str, "default": ""}, cb=self.sig_edit_cb)
+                elif key == "setp":
+                    widget = self.edit_item(userconfig, "setp", {"type": str, "default": ""}, cb=self.sig_edit_cb)
+                else:
+                    widget = self.edit_item(userconfig, "net", {"type": "select", "options": options, "default": ""}, cb=self.sig_edit_cb)
+
+                options = []
+                for halpin, halpin_info in halpins.LINUXCNC_SIGNALS[signal_direction].items():
+                    if is_bool:
+                        if halpin_info.get("type") == bool:
+                            options.append(halpin)
+                    elif halpin_info.get("type") != bool:
+                        options.append(halpin)
+
+                table_data.append(
+                    (f"rio.{signal_halname}", {"output": "<-", "input": "->", "inout": "<->"}.get(signal_direction, signal_direction), signal_net, htype, key, plugin_instance, signal_name, widget)
+                )
+
+        if self.sig_table_sort_col > 0:
+            idx = self.sig_table_sort_col - 1
+            table_data.sort(key=sort_key)
+        elif self.sig_table_sort_col < 0:
+            idx = -self.sig_table_sort_col - 1
+            table_data.sort(key=sort_key, reverse=True)
+
+        for row_n, row in enumerate(table_data):
+            self.sig_table.setRowCount(row_n + 1)
+            for col_n, col in enumerate(row[:5]):
+                pitem = QTableWidgetItem(col)
+                self.sig_table.setItem(row_n, col_n, pitem)
+            self.sig_table.setCellWidget(row_n, 2, row[7])
+
+        for col_n, col in enumerate(row[:5]):
+            self.sig_table.resizeColumnToContents(col_n)
+
+    def pin_edit_cb(self, widget):
+        self.generate_cb(preview=True)
+        self.request_load_tree = 3
+        self.overview_load()
+        self.json_preview()
+
     def pin_table_load(self):
         self.pin_table.setRowCount(0)
         in_use = set()
@@ -1183,7 +1318,8 @@ class WinForm(QWidget):
             for col_n, col in enumerate(row):
                 pitem = QTableWidgetItem(col)
                 self.pin_table.setItem(row_n, col_n, pitem)
-        # self.pin_table.resizeColumnToContents(0)
+        for col_n, col in enumerate(row):
+            self.pin_table.resizeColumnToContents(col_n)
 
     def edit_item(self, obj, key, var_setup=None, cb=None):
         if var_setup is None:
@@ -1575,8 +1711,7 @@ class WinForm(QWidget):
     def del_plugin(self, plugin_instance, plugin_id, widget):
         self.config["plugins"].pop(plugin_id)
         self.config_load()
-        # self.load_tree()
-        # self.display()
+        self.display()
 
     def config_plugin(self, plugin_instance, plugin_id, widget):
         if os.path.isfile(f"{riocore_path}/plugins/{plugin_instance.NAME}/config.py"):
