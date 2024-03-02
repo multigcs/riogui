@@ -1898,10 +1898,7 @@ class WinForm(QWidget):
             signal_setup["net"] = {"type": "select", "options": options}
 
             signal_setup["function"] = {"type": str}
-            if signal_defaults.get("bool"):
-                signal_setup["setp"] = {"type": int, "min": 0, "max": 1}
-            else:
-                signal_setup["setp"] = {"type": float}
+            signal_setup["setp"] = {"type": str, "default": ""}
 
             for option, option_setup in signal_setup.items():
                 help_text = f"{option} config"
