@@ -395,8 +395,8 @@ class WinForm(QWidget):
         scroll.setWidget(self.imagew)
         scroll.setWidgetResizable(True)
         self.tabwidget.addTab(scroll, "Flow")
-        self.tabwidget.addTab(self.pin_table, "Pintable")
-        self.tabwidget.addTab(self.sig_table, "Signaltable")
+        self.tabwidget.addTab(self.pin_table, "Pins")
+        self.tabwidget.addTab(self.sig_table, "Signals")
 
         self.jsonpreview = QPlainTextEdit()
         self.jsonpreview.clear()
