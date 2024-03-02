@@ -18,6 +18,11 @@ STYLESHEET = """
     background-color: #444444;
     color: white;
 """
+STYLESHEET_CHECKBOX = """
+    QCheckBox::indicator::unchecked {
+        background-color: lightgray;
+    }
+"""
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--debug", "-d", help="debug", default=False, action="store_true")
@@ -77,12 +82,13 @@ class WinForm(QWidget):
                     if signal.get("bool"):
                         signal[f"widget_{plugin_instance.title}"] = QCheckBox()
                         signal[f"widget_{plugin_instance.title}"].setChecked(value)
+                        signal[f"widget_{plugin_instance.title}"].setStyleSheet(STYLESHEET_CHECKBOX)
                     elif signal.get("direction") == "input":
                         signal[f"widget_{plugin_instance.title}"] = QLabel("")
                         signal[f"widget_{plugin_instance.title}"].setText(f"{value_str} {value_unit}")
                     else:
-                        vmin = signal.get("min", 0)
-                        vmax = signal.get("max", 100000)
+                        vmin = signal.get("userconfig", {}).get("min", 0)
+                        vmax = signal.get("userconfig", {}).get("max", 100000)
                         signal[f"widget_{plugin_instance.title}"] = QSlider(Qt.Horizontal)
                         signal[f"widget_{plugin_instance.title}"].setMinimum(vmin)
                         signal[f"widget_{plugin_instance.title}"].setMaximum(vmax)

@@ -1829,9 +1829,9 @@ class WinForm(QWidget):
         plugin_view = parent.child(parent.rowCount() - 1)
         self.tree_add_options(plugin_view, plugin_instance, expand=expand)
         self.tree_add_pins(plugin_view, plugin_instance, expand=expand, nopins=nopins)
-        if plugin_instance.TYPE == "joint":
+        if plugin_instance.TYPE == "joint" and plugin_instance.plugin_setup.get("is_joint", False):
             self.tree_add_joint(plugin_view, plugin_instance, expand=expand)
-            if plugin_instance.SIGNALS and not plugin_instance.plugin_setup.get("is_joint", True):
+            if plugin_instance.SIGNALS:
                 self.tree_add_signals(plugin_view, plugin_instance, expand=expand)
         else:
             if plugin_instance.SIGNALS:
@@ -1895,7 +1895,11 @@ class WinForm(QWidget):
             if expand:
                 self.treeview.expand(self.model.indexFromItem(signal_view))
 
-            for option, option_setup in {"net": {"type": str}, "function": {"type": str}}.items():
+            signal_setup = signal_defaults.get("setup", {})
+            signal_setup["net"] = {"type": str}
+            signal_setup["function"] = {"type": str}
+
+            for option, option_setup in signal_setup.items():
                 help_text = f"{option} config"
                 citem = MyStandardItem()
                 signal_view.appendRow(
