@@ -17,6 +17,7 @@ from functools import partial
 
 import graphviz
 import riocore
+from riocore import halpins
 from PyQt5 import QtGui, QtSvg
 from PyQt5.QtCore import QRect, Qt, QTimer
 from PyQt5.QtGui import QStandardItem, QStandardItemModel
@@ -904,19 +905,6 @@ class WinForm(QWidget):
                     sportsr.append(f"<{pin}>{pin}")
 
                 num += 1
-
-            net = plugin_instance.plugin_setup.get("net")
-            if net:
-                print(f"WARNING: net moved into signals: {title} / {net}")
-                gAll.edge(f"{title}", f"{net}", dir="none", color="white", fontcolor="white")
-                gAll.node(
-                    net,
-                    shape="record",
-                    label=net,
-                    fontsize="11pt",
-                    style="rounded, filled",
-                    fillcolor="lightpink",
-                )
 
             signalports = []
             for signal_name, signal_config in plugin_instance.plugin_setup.get("signals", {}).items():
@@ -1896,8 +1884,24 @@ class WinForm(QWidget):
                 self.treeview.expand(self.model.indexFromItem(signal_view))
 
             signal_setup = signal_defaults.get("setup", {})
-            signal_setup["net"] = {"type": str}
+            signal_direction = signal_defaults["direction"]
+            is_bool = signal_defaults.get("bool", False)
+
+            options = []
+            for halpin, halpin_info in halpins.LINUXCNC_SIGNALS[signal_direction].items():
+                if is_bool:
+                    if halpin_info.get("type") == bool:
+                        options.append(halpin)
+                elif halpin_info.get("type") != bool:
+                    options.append(halpin)
+
+            signal_setup["net"] = {"type": "select", "options": options}
+
             signal_setup["function"] = {"type": str}
+            if signal_defaults.get("bool"):
+                signal_setup["setp"] = {"type": int, "min": 0, "max": 1}
+            else:
+                signal_setup["setp"] = {"type": float}
 
             for option, option_setup in signal_setup.items():
                 help_text = f"{option} config"
