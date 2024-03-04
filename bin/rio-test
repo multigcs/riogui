@@ -87,8 +87,8 @@ class WinForm(QWidget):
                         signal[f"widget_{plugin_instance.title}"] = QLabel("")
                         signal[f"widget_{plugin_instance.title}"].setText(f"{value_str} {value_unit}")
                     else:
-                        vmin = signal.get("userconfig", {}).get("min", 0)
-                        vmax = signal.get("userconfig", {}).get("max", 100000)
+                        vmin = signal.get("userconfig", {}).get("min", signal.get("min", 0))
+                        vmax = signal.get("userconfig", {}).get("max", signal.get("max", 100000))
                         signal[f"widget_{plugin_instance.title}"] = QSlider(Qt.Horizontal)
                         signal[f"widget_{plugin_instance.title}"].setMinimum(vmin)
                         signal[f"widget_{plugin_instance.title}"].setMaximum(vmax)
