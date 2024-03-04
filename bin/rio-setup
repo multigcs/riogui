@@ -1143,6 +1143,56 @@ class WinForm(QWidget):
 
         options = []
 
+        for module_data in self.config.get("modules", []):
+            slot_name = module_data.get("slot")
+            for plugin_instance in self.modules[slot_name]["instances"]:
+                plugin_name = plugin_instance.plugin_setup.get("name", plugin_instance.title)
+                plugin_title = plugin_instance.NAME
+                if plugin_name:
+                    plugin_title = f"{plugin_name} ({plugin_instance.NAME})"
+
+                if plugin_instance.TYPE == "expansion":
+                    title = plugin_instance.expansion_prefix
+
+                for signal_name, signal_config in plugin_instance.signals().items():
+                    signal_setup = signal_config.get("setup", {})
+                    signal_direction = signal_config["direction"]
+                    signal_halname = signal_config["halname"]
+                    is_bool = signal_config.get("bool", False)
+                    htype = "bit" if is_bool else "float"
+
+                    if "userconfig" not in signal_config:
+                        signal_config["userconfig"] = {}
+                    userconfig = signal_config["userconfig"]
+                    signal_net = userconfig.get("net", "")
+                    signal_function = userconfig.get("function", "")
+                    signal_setp = str(userconfig.get("setp", ""))
+
+                    key = "net"
+                    if signal_function:
+                        key = "function"
+                    elif signal_setp:
+                        key = "setp"
+
+                    if key == "function":
+                        widget = self.edit_item(userconfig, "function", {"type": str, "default": ""}, cb=self.sig_edit_cb)
+                    elif key == "setp":
+                        widget = self.edit_item(userconfig, "setp", {"type": str, "default": ""}, cb=self.sig_edit_cb)
+                    else:
+                        widget = self.edit_item(userconfig, "net", {"type": "select", "options": options, "default": ""}, cb=self.sig_edit_cb)
+
+                    options = []
+                    for halpin, halpin_info in halpins.LINUXCNC_SIGNALS[signal_direction].items():
+                        if is_bool:
+                            if halpin_info.get("type") == bool:
+                                options.append(halpin)
+                        elif halpin_info.get("type") != bool:
+                            options.append(halpin)
+
+                    table_data.append(
+                        (f"rio.{signal_halname}", {"output": "<-", "input": "->", "inout": "<->"}.get(signal_direction, signal_direction), signal_net, htype, key, plugin_instance, signal_name, widget)
+                    )
+
         for plugin_instance in self.plugins.plugin_instances:
             plugin_name = plugin_instance.plugin_setup.get("name", plugin_instance.title)
             plugin_title = plugin_instance.NAME
