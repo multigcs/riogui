@@ -734,12 +734,15 @@ class WinForm(QWidget):
         self.pinlist = []
         self.pinmapping = {}
         self.pinmapping_rev = {}
+        self.expansion_pins = []
         for plugin_instance in self.plugins.plugin_instances:
             if plugin_instance.TYPE == "expansion":
                 for pin in plugin_instance.expansion_outputs():
+                    self.expansion_pins.append(pin)
                     if pin not in self.pinlist:
                         self.pinlist.append(pin)
                 for pin in plugin_instance.expansion_inputs():
+                    self.expansion_pins.append(pin)
                     if pin not in self.pinlist:
                         self.pinlist.append(pin)
 
@@ -765,8 +768,6 @@ class WinForm(QWidget):
                 self.pinmapping_rev[pin] = pin_id
                 if pin_id not in self.pinlist:
                     self.pinlist.append(pin_id)
-
-        # TODO: add expansion pins
 
         def sort_key(value):
             numbers = re.findall(r"\d+", value)
@@ -915,9 +916,10 @@ class WinForm(QWidget):
 
                 con_dev = fpga_name
                 con_pin = pin
-                if pin and pin.startswith("EXPANSION"):
-                    con_dev = pin.split("_")[0]
-                    con_pin = pin.split("_")[1].replace("[", "").replace("]", "")
+
+                if pin and pin in self.expansion_pins:
+                    con_dev = "_".join(pin.split("_")[0:-1])
+                    con_pin = pin.replace("[", "").replace("]", "")
 
                 if ":" in con_pin:
                     con_pin = con_pin.replace(":", "_")
@@ -953,7 +955,7 @@ class WinForm(QWidget):
 
                 gAll.edge(f"{con_dev}:{con_pin}", f"{title}:{pin_name}", dir=arrow_dir, color=color)
 
-                if pin and ":" not in pin and not pin.startswith("EXPANSION"):
+                if pin and ":" not in pin and pin not in self.expansion_pins:
                     sportsr.append(f"<{pin}>{pin}")
 
                 num += 1
@@ -987,13 +989,11 @@ class WinForm(QWidget):
                     )
 
             if plugin_instance.TYPE == "expansion":
-                bits = plugin_instance.plugin_setup.get("bits", 8)
-
                 eports = []
-                for n in range(bits):
-                    eports.append(f"<INPUT{n}>INPUT[{n}]")
-                for n in range(bits):
-                    eports.append(f"<OUTPUT{n}>OUTPUT[{n}]")
+                for pname in plugin_instance.expansion_outputs():
+                    eports.append(f"<{pname.replace('[', '').replace(']', '')}>{pname}")
+                for pname in plugin_instance.expansion_inputs():
+                    eports.append(f"<{pname.replace('[', '').replace(']', '')}>{pname}")
 
                 label = f"{{ {{{' | '.join(pports)}}} | {title} | {{{' | '.join(eports)}}} }}"
 
@@ -1029,14 +1029,13 @@ class WinForm(QWidget):
                     if "pin_mapped" not in pin_setup:
                         continue
 
-                    # pin = self.pinmapping[f"{slot_name}:{pin_setup['pin_mapped']}"]
                     pin = f"{slot_name}_{pin_setup['pin_mapped']}"
-
                     con_dev = fpga_name
                     con_pin = pin
-                    if pin and pin.startswith("EXPANSION"):
-                        con_dev = pin.split("_")[0]
-                        con_pin = pin.split("_")[1].replace("[", "").replace("]", "")
+
+                    if pin and pin in self.expansion_pins:
+                        con_dev = "_".join(pin.split("_")[0:-1])
+                        con_pin = pin.replace("[", "").replace("]", "")
 
                     if pin_defaults["direction"] == "input":
                         modifiers = pin_setup.get("modifier", [])
