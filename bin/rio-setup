@@ -847,8 +847,6 @@ class WinForm(QWidget):
                 col = col.replace(number, f"{int(number):09d}")
             return col.lower()
 
-        options = []
-
         for module_data in self.config.get("modules", []):
             slot_name = module_data.get("slot")
             for plugin_instance in self.modules[slot_name]["instances"]:
@@ -871,20 +869,29 @@ class WinForm(QWidget):
                     elif signal_setp:
                         key = "setp"
 
-                    if key == "function":
-                        widget = self.edit_item(userconfig, "function", {"type": str, "default": ""}, cb=self.sig_edit_cb)
-                    elif key == "setp":
-                        widget = self.edit_item(userconfig, "setp", {"type": str, "default": ""}, cb=self.sig_edit_cb)
-                    else:
-                        widget = self.edit_item(userconfig, "net", {"type": "select", "options": options, "default": ""}, cb=self.sig_edit_cb)
-
-                    options = []
+                    options_net = []
                     for halpin, halpin_info in halpins.LINUXCNC_SIGNALS[signal_direction].items():
                         if is_bool:
                             if halpin_info.get("type") == bool:
-                                options.append(halpin)
+                                options_net.append(halpin)
                         elif halpin_info.get("type") != bool:
-                            options.append(halpin)
+                            options_net.append(halpin)
+
+                    options_func = []
+                    for halpin, halpin_info in halpins.RIO_FUNCTIONS[signal_direction].items():
+                        if is_bool:
+                            if halpin_info.get("type") == bool:
+                                options_func.append(halpin)
+                        elif halpin_info.get("type") != bool:
+                            options_func.append(halpin)
+
+                    if key == "function":
+                        widget = self.edit_item(userconfig, "function", {"type": "select", "options": options_func, "default": ""}, cb=self.sig_edit_cb)
+                    elif key == "setp":
+                        widget = self.edit_item(userconfig, "setp", {"type": str, "default": ""}, cb=self.sig_edit_cb)
+                    else:
+                        widget = self.edit_item(userconfig, "net", {"type": "select", "options": options_net, "default": ""}, cb=self.sig_edit_cb)
+
 
                     table_data.append(
                         (f"rio.{signal_halname}", {"output": "<-", "input": "->", "inout": "<->"}.get(signal_direction, signal_direction), signal_net, htype, key, plugin_instance, signal_name, widget)
@@ -910,20 +917,28 @@ class WinForm(QWidget):
                 elif signal_setp:
                     key = "setp"
 
-                if key == "function":
-                    widget = self.edit_item(userconfig, "function", {"type": str, "default": ""}, cb=self.sig_edit_cb)
-                elif key == "setp":
-                    widget = self.edit_item(userconfig, "setp", {"type": str, "default": ""}, cb=self.sig_edit_cb)
-                else:
-                    widget = self.edit_item(userconfig, "net", {"type": "select", "options": options, "default": ""}, cb=self.sig_edit_cb)
-
-                options = []
+                options_net = []
                 for halpin, halpin_info in halpins.LINUXCNC_SIGNALS[signal_direction].items():
                     if is_bool:
                         if halpin_info.get("type") == bool:
-                            options.append(halpin)
+                            options_net.append(halpin)
                     elif halpin_info.get("type") != bool:
-                        options.append(halpin)
+                        options_net.append(halpin)
+
+                options_func = []
+                for halpin, halpin_info in halpins.RIO_FUNCTIONS[signal_direction].items():
+                    if is_bool:
+                        if halpin_info.get("type") == bool:
+                            options_func.append(halpin)
+                    elif halpin_info.get("type") != bool:
+                        options_func.append(halpin)
+
+                if key == "function":
+                    widget = self.edit_item(userconfig, "function", {"type": "select", "options": options_func, "default": ""}, cb=self.sig_edit_cb)
+                elif key == "setp":
+                    widget = self.edit_item(userconfig, "setp", {"type": str, "default": ""}, cb=self.sig_edit_cb)
+                else:
+                    widget = self.edit_item(userconfig, "net", {"type": "select", "options": options_net, "default": ""}, cb=self.sig_edit_cb)
 
                 table_data.append(
                     (f"rio.{signal_halname}", {"output": "<-", "input": "->", "inout": "<->"}.get(signal_direction, signal_direction), signal_net, htype, key, plugin_instance, signal_name, widget)
@@ -1352,16 +1367,19 @@ class WinForm(QWidget):
         self.display()
 
     def select_plugin(self):
-        def change(combo, info, description, selected):
-            plugin_name = combo.currentText()
+        
+        def change(row, column):
+            selected = table.item(row, 0).text()
             plugins = riocore.Plugins()
-            plugins.load_plugins({"plugins": [{"type": plugin_name}]})
+            plugins.load_plugins({"plugins": [{"type": selected}]})
             infotext = plugins.plugin_instances[0].INFO
+            plugin_name.setText(selected)
             info.setText(infotext)
             descriptiontext = plugins.plugin_instances[0].DESCRIPTION
             description.clear()
             description.insertPlainText(descriptiontext)
 
+        selected = ""
         plugin_list = self.plugins.list()
         plugins = riocore.Plugins()
         plugins.load_plugins({"plugins": [{"type": plugin_list[0]["name"]}]})
@@ -1370,8 +1388,8 @@ class WinForm(QWidget):
 
         dialog = QDialog()
         dialog.setWindowTitle("add Plugin")
-        dialog.setFixedWidth(500)
-        dialog.setFixedHeight(400)
+        dialog.setFixedWidth(800)
+        dialog.setFixedHeight(600)
         dialog.setStyleSheet(STYLESHEET)
 
         dialog.buttonBox = QDialogButtonBox(QDialogButtonBox.Ok)
@@ -1385,13 +1403,21 @@ class WinForm(QWidget):
 
         message = QLabel("Plugin-Type:")
         vlayout_left.addWidget(message)
-        combo = QComboBox(self)
-        for plugin in plugin_list:
-            combo.addItem(plugin["name"])
-        vlayout_left.addWidget(combo)
-        vlayout_left.addStretch()
+
+        table = QTableWidget()
+        table.setColumnCount(1)
+        table.setHorizontalHeaderItem(0, QTableWidgetItem("Plugins"))
+        table.setRowCount(len(plugin_list))
+        for row, plugin in enumerate(plugin_list):
+            pitem = QTableWidgetItem(plugin["name"])
+            table.setItem(row, 0, pitem)
+        table.setFixedWidth(200)
+        vlayout_left.addWidget(table)
 
         vlayout = QVBoxLayout()
+        plugin_name = QLabel("")
+        vlayout.addWidget(plugin_name)
+
         info = QLabel(infotext)
         vlayout.addWidget(info)
 
@@ -1406,14 +1432,13 @@ class WinForm(QWidget):
 
         dialog.layout.addLayout(hlayout)
 
-        cb = partial(change, combo, info, description)
-        combo.activated.connect(cb)
+        table.cellClicked.connect(change)
 
         dialog.layout.addWidget(dialog.buttonBox)
         dialog.setLayout(dialog.layout)
 
         if dialog.exec():
-            return combo.currentText()
+            return plugin_name.text()
 
     def select_module(self):
         dialog = QDialog()
@@ -1651,16 +1676,26 @@ class WinForm(QWidget):
             signal_direction = signal_defaults["direction"]
             is_bool = signal_defaults.get("bool", False)
 
-            options = []
+            options_net = []
             for halpin, halpin_info in halpins.LINUXCNC_SIGNALS[signal_direction].items():
                 if is_bool:
                     if halpin_info.get("type") == bool:
-                        options.append(halpin)
+                        options_net.append(halpin)
                 elif halpin_info.get("type") != bool:
-                    options.append(halpin)
+                    options_net.append(halpin)
 
-            signal_setup["net"] = {"type": "select", "options": options}
-            signal_setup["function"] = {"type": str}
+            options_func = []
+            for halpin, halpin_info in halpins.RIO_FUNCTIONS[signal_direction].items():
+                if is_bool:
+                    if halpin_info.get("type") == bool:
+                        options_func.append(halpin)
+                elif halpin_info.get("type") != bool:
+                    options_func.append(halpin)
+
+
+
+            signal_setup["net"] = {"type": "select", "options": options_net}
+            signal_setup["function"] = {"type": "select", "options": options_func}
             if signal_direction == "output":
                 signal_setup["setp"] = {"type": str, "default": ""}
 
