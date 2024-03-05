@@ -876,6 +876,11 @@ class WinForm(QWidget):
         num = 0
         fpga_name = f"{self.config.get('boardcfg')}"
 
+        lcnc_nodes = []
+
+        def graph_node_hal(name, **kwargs):
+            lcnc_nodes.append((name, kwargs))
+
         gAll = graphviz.Digraph("G", format="svg")
         gAll.attr(rankdir="LR")
         gAll.attr(bgcolor="black")
@@ -969,23 +974,23 @@ class WinForm(QWidget):
                 direction_mapping = {"input": "normal", "output": "back", "inout": "both"}
                 if function:
                     gAll.edge(f"{title}:signal_{signal_name}", f"{function}", dir=direction_mapping.get(signal_direction, "none"), color="white", fontcolor="white")
-                    gAll.node(
+                    graph_node_hal(
                         function,
                         shape="record",
                         label=function,
                         fontsize="11pt",
                         style="rounded, filled",
-                        fillcolor="lightpink",
+                        fillcolor="yellow",
                     )
                 if net:
                     gAll.edge(f"{title}:signal_{signal_name}", f"{net}", dir=direction_mapping.get(signal_direction, "none"), color="white", fontcolor="white")
-                    gAll.node(
+                    graph_node_hal(
                         net,
                         shape="record",
                         label=net,
                         fontsize="11pt",
                         style="rounded, filled",
-                        fillcolor="lightpink",
+                        fillcolor="yellow",
                     )
 
             if plugin_instance.TYPE == "expansion":
@@ -1072,13 +1077,13 @@ class WinForm(QWidget):
                 net = plugin_instance.plugin_setup.get("net")
                 if net:
                     gAll.edge(f"{title}", f"{net}", dir="none", color="white", fontcolor="white")
-                    gAll.node(
+                    graph_node_hal(
                         net,
                         shape="record",
                         label=net,
                         fontsize="11pt",
                         style="rounded, filled",
-                        fillcolor="lightpink",
+                        fillcolor="yellow",
                     )
 
                 signalports = []
@@ -1090,23 +1095,23 @@ class WinForm(QWidget):
                     direction_mapping = {"input": "forward", "output": "back", "inout": "both"}
                     if function:
                         gAll.edge(f"{title}:signal_{signal_name}", f"{function}", dir=direction_mapping.get(signal_direction, "none"), color="white", fontcolor="white")
-                        gAll.node(
+                        graph_node_hal(
                             function,
                             shape="record",
                             label=function,
                             fontsize="11pt",
                             style="rounded, filled",
-                            fillcolor="lightpink",
+                            fillcolor="yellow",
                         )
                     if net:
                         gAll.edge(f"{title}:signal_{signal_name}", f"{net}", dir=direction_mapping.get(signal_direction, "none"), color="white", fontcolor="white")
-                        gAll.node(
+                        graph_node_hal(
                             net,
                             shape="record",
                             label=net,
                             fontsize="11pt",
                             style="rounded, filled",
-                            fillcolor="lightpink",
+                            fillcolor="yellow",
                         )
 
                 if signalports:
@@ -1124,6 +1129,14 @@ class WinForm(QWidget):
 
         label = f"{{ {{{' | '.join(sportsl)}}} | {fpga_name} | {{{' | '.join(sportsr)}}} }}"
         gAll.node(f"{fpga_name}", shape="record", label=label, fontsize="11pt", style="rounded, filled", fillcolor="yellow")
+
+        with gAll.subgraph(name="cluster_0") as c:
+            for node in lcnc_nodes:
+                c.attr(label="LinuxCNC-HAL")
+                c.attr(style="filled", color="lightgrey")
+                c.node_attr["style"] = "filled"
+
+                c.node(node[0], **node[1])
 
         self.imagew.load(gAll.pipe().decode().encode())
 
