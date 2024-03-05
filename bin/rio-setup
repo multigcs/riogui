@@ -48,7 +48,6 @@ from PyQt5.QtWidgets import (
 riocore_path = os.path.dirname(riocore.__file__)
 
 
-
 class WinForm(QWidget):
     def __init__(self, args, parent=None):
         super(WinForm, self).__init__(parent)
@@ -224,13 +223,11 @@ class WinForm(QWidget):
         button.clicked.connect(self.testgui)
         button_layout.addWidget(button)
 
-
         self.addons = {}
         for addon_path in glob.glob(f"{riocore_path}/generator/addons/*/config.py"):
             addon_name = addon_path.split("/")[-2]
             print(f"loading addon: {addon_name}")
             self.addons[addon_name] = importlib.import_module(".config", f"riocore.generator.addons.{addon_name}")
-
 
         self.json_load()
         self.config_load()
@@ -892,7 +889,6 @@ class WinForm(QWidget):
                     else:
                         widget = self.edit_item(userconfig, "net", {"type": "select", "options": options_net, "default": ""}, cb=self.sig_edit_cb)
 
-
                     table_data.append(
                         (f"rio.{signal_halname}", {"output": "<-", "input": "->", "inout": "<->"}.get(signal_direction, signal_direction), signal_net, htype, key, plugin_instance, signal_name, widget)
                     )
@@ -1122,11 +1118,9 @@ class WinForm(QWidget):
         if "linuxcnc" not in self.config:
             self.config["linuxcnc"] = {}
 
-
         for addon_name, addon in self.addons.items():
             if hasattr(addon, "load_tree"):
                 addon.load_tree(self, tree_lcnc)
-
 
         bitem = MyStandardItem()
         tree_lcnc.appendRow(
@@ -1286,7 +1280,6 @@ class WinForm(QWidget):
             self.tree_add_plugin(self.tree_plugins, plugin_instance, expand=True)
         self.display()
 
-
     def add_module(self, widget):
         while True:
             print("select")
@@ -1367,7 +1360,6 @@ class WinForm(QWidget):
         self.display()
 
     def select_plugin(self):
-        
         def change(row, column):
             selected = table.item(row, 0).text()
             plugins = riocore.Plugins()
@@ -1691,8 +1683,6 @@ class WinForm(QWidget):
                         options_func.append(halpin)
                 elif halpin_info.get("type") != bool:
                     options_func.append(halpin)
-
-
 
             signal_setup["net"] = {"type": "select", "options": options_net}
             signal_setup["function"] = {"type": "select", "options": options_func}
