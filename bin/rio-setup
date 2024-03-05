@@ -876,15 +876,11 @@ class WinForm(QWidget):
         num = 0
         fpga_name = f"{self.config.get('boardcfg')}"
 
-        lcnc_nodes = []
-
-        def graph_node_hal(name, **kwargs):
-            lcnc_nodes.append((name, kwargs))
-
         gAll = graphviz.Digraph("G", format="svg")
         gAll.attr(rankdir="LR")
         gAll.attr(bgcolor="black")
 
+        lcports = []
         sportsr = []
         sportsl = []
 
@@ -973,25 +969,11 @@ class WinForm(QWidget):
                 signal_direction = plugin_instance.SIGNALS.get(signal_name, {}).get("direction")
                 direction_mapping = {"input": "normal", "output": "back", "inout": "both"}
                 if function:
-                    gAll.edge(f"{title}:signal_{signal_name}", f"{function}", dir=direction_mapping.get(signal_direction, "none"), color="white", fontcolor="white")
-                    graph_node_hal(
-                        function,
-                        shape="record",
-                        label=function,
-                        fontsize="11pt",
-                        style="rounded, filled",
-                        fillcolor="yellow",
-                    )
+                    gAll.edge(f"{title}:signal_{signal_name}", f"hal:{function}", dir=direction_mapping.get(signal_direction, "none"), color="white", fontcolor="white")
+                    lcports.append(f"<{function}>{function}")
                 if net:
-                    gAll.edge(f"{title}:signal_{signal_name}", f"{net}", dir=direction_mapping.get(signal_direction, "none"), color="white", fontcolor="white")
-                    graph_node_hal(
-                        net,
-                        shape="record",
-                        label=net,
-                        fontsize="11pt",
-                        style="rounded, filled",
-                        fillcolor="yellow",
-                    )
+                    gAll.edge(f"{title}:signal_{signal_name}", f"hal:{net}", dir=direction_mapping.get(signal_direction, "none"), color="white", fontcolor="white")
+                    lcports.append(f"<{net}>{net}")
 
             if plugin_instance.TYPE == "expansion":
                 eports = []
@@ -1074,18 +1056,6 @@ class WinForm(QWidget):
                     gAll.edge(f"{con_dev}:{con_pin}", f"{title}:{pin_name}", dir=arrow_dir, color=color)
                     pports.append(f"<{pin_name}>{pin_name}")
 
-                net = plugin_instance.plugin_setup.get("net")
-                if net:
-                    gAll.edge(f"{title}", f"{net}", dir="none", color="white", fontcolor="white")
-                    graph_node_hal(
-                        net,
-                        shape="record",
-                        label=net,
-                        fontsize="11pt",
-                        style="rounded, filled",
-                        fillcolor="yellow",
-                    )
-
                 signalports = []
                 for signal_name, signal_config in plugin_instance.plugin_setup.get("signals", {}).items():
                     net = signal_config.get("net")
@@ -1094,25 +1064,11 @@ class WinForm(QWidget):
                     signal_direction = plugin_instance.SIGNALS.get(signal_name, {}).get("direction")
                     direction_mapping = {"input": "forward", "output": "back", "inout": "both"}
                     if function:
-                        gAll.edge(f"{title}:signal_{signal_name}", f"{function}", dir=direction_mapping.get(signal_direction, "none"), color="white", fontcolor="white")
-                        graph_node_hal(
-                            function,
-                            shape="record",
-                            label=function,
-                            fontsize="11pt",
-                            style="rounded, filled",
-                            fillcolor="yellow",
-                        )
+                        gAll.edge(f"{title}:signal_{signal_name}", f"hal:{function}", dir=direction_mapping.get(signal_direction, "none"), color="white", fontcolor="white")
+                        lcports.append(f"<{function}>{function}")
                     if net:
-                        gAll.edge(f"{title}:signal_{signal_name}", f"{net}", dir=direction_mapping.get(signal_direction, "none"), color="white", fontcolor="white")
-                        graph_node_hal(
-                            net,
-                            shape="record",
-                            label=net,
-                            fontsize="11pt",
-                            style="rounded, filled",
-                            fillcolor="yellow",
-                        )
+                        gAll.edge(f"{title}:signal_{signal_name}", f"hal:{net}", dir=direction_mapping.get(signal_direction, "none"), color="white", fontcolor="white")
+                        lcports.append(f"<{net}>{net}")
 
                 if signalports:
                     label = f"{{ {{{' | '.join(pports)}}} | {title} | {{{' | '.join(signalports)}}} }}"
@@ -1130,13 +1086,15 @@ class WinForm(QWidget):
         label = f"{{ {{{' | '.join(sportsl)}}} | {fpga_name} | {{{' | '.join(sportsr)}}} }}"
         gAll.node(f"{fpga_name}", shape="record", label=label, fontsize="11pt", style="rounded, filled", fillcolor="yellow")
 
-        with gAll.subgraph(name="cluster_0") as c:
-            for node in lcnc_nodes:
-                c.attr(label="LinuxCNC-HAL")
-                c.attr(style="filled", color="lightgrey")
-                c.node_attr["style"] = "filled"
-
-                c.node(node[0], **node[1])
+        label = f"{{ {{{' | '.join(lcports)}}} | LinuxCNC-HAL }}"
+        gAll.node(
+            "hal",
+            shape="record",
+            label=label,
+            fontsize="11pt",
+            style="rounded, filled",
+            fillcolor="lightgreen",
+        )
 
         self.imagew.load(gAll.pipe().decode().encode())
 
