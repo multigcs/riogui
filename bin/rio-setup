@@ -927,14 +927,14 @@ class WinForm(QWidget):
 
                 if pin_defaults["direction"] == "input":
                     modifiers = pin_setup.get("modifier", [])
-                    if modifiers:
-                        modifiers = reversed(modifiers)
                     color = "green"
-                    arrow_dir = "back"
+                    arrow_dir = "forward"
                 else:
                     modifiers = pin_setup.get("modifier", [])
+                    if modifiers:
+                        modifiers = reversed(modifiers)
                     color = "red"
-                    arrow_dir = "forward"
+                    arrow_dir = "back"
 
                 if modifiers:
                     modifier_chain = []
@@ -1026,14 +1026,14 @@ class WinForm(QWidget):
 
                     if pin_defaults["direction"] == "input":
                         modifiers = pin_setup.get("modifier", [])
-                        if modifiers:
-                            modifiers = reversed(modifiers)
                         color = "green"
-                        arrow_dir = "back"
+                        arrow_dir = "forward"
                     else:
                         modifiers = pin_setup.get("modifier", [])
+                        if modifiers:
+                            modifiers = reversed(modifiers)
                         color = "red"
-                        arrow_dir = "forward"
+                        arrow_dir = "back"
 
                     if modifiers:
                         modifier_chain = []
