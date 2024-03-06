@@ -621,6 +621,7 @@ class WinForm(QWidget):
             label = f"{{ {{{' | '.join(mportsl)}}} | {slot_name} | {{{' | '.join(mportsr)}}} }}"
             sportsr.append(label)
 
+        joint_n = 0
         for plugin_instance in self.plugins.plugin_instances:
             pports = []
             name = plugin_instance.plugin_setup.get("name", plugin_instance.title)
@@ -691,6 +692,21 @@ class WinForm(QWidget):
                 signalports.append(f"<signal_{signal_name}>{signal_name}")
                 signal_direction = plugin_instance.SIGNALS.get(signal_name, {}).get("direction")
                 direction_mapping = {"input": "normal", "output": "back", "inout": "both"}
+
+                if not net and not function and plugin_instance.plugin_setup.get("is_joint", False):
+                    if signal_name == "position" and signal_direction == "input":
+                        hal_pin = f"joint.{joint_n}.motor-pos-fb"
+                        gAll.edge(f"{title}:signal_{signal_name}", f"hal:{hal_pin}", dir="normal", color="white", fontcolor="white")
+                        lcports.append(f"<{hal_pin}>{hal_pin}")
+                    elif signal_name == "position" and signal_direction == "output":
+                        hal_pin = f"joint.{joint_n}.motor-pos-cmd"
+                        gAll.edge(f"{title}:signal_{signal_name}", f"hal:{hal_pin}", dir="back", color="white", fontcolor="white")
+                        lcports.append(f"<{hal_pin}>{hal_pin}")
+                    elif signal_name == "velocity":
+                        hal_pin = f"joint.{joint_n}.motor-pos-cmd"
+                        gAll.edge(f"{title}:signal_{signal_name}", f"hal:{hal_pin}", dir="back", color="white", fontcolor="white")
+                        lcports.append(f"<{hal_pin}>{hal_pin}")
+
                 if function:
                     gAll.edge(f"{title}:signal_{signal_name}", f"hal:{function}", dir=direction_mapping.get(signal_direction, "none"), color="white", fontcolor="white")
                     lcports.append(f"<{function}>{function}")
@@ -720,6 +736,9 @@ class WinForm(QWidget):
                 style="rounded, filled",
                 fillcolor="lightblue",
             )
+
+            if plugin_instance.plugin_setup.get("is_joint", False):
+                joint_n += 1
 
         for module_data in self.config.get("modules", []):
             slot_name = module_data.get("slot")
@@ -786,6 +805,21 @@ class WinForm(QWidget):
                     signalports.append(f"<signal_{signal_name}>{signal_name}")
                     signal_direction = plugin_instance.SIGNALS.get(signal_name, {}).get("direction")
                     direction_mapping = {"input": "forward", "output": "back", "inout": "both"}
+
+                    if not net and not function and plugin_instance.plugin_setup.get("is_joint", False):
+                        if signal_name == "position" and signal_direction == "input":
+                            hal_pin = f"joint.{joint_n}.motor-pos-fb"
+                            gAll.edge(f"{title}:signal_{signal_name}", f"hal:{hal_pin}", dir="normal", color="white", fontcolor="white")
+                            lcports.append(f"<{hal_pin}>{hal_pin}")
+                        elif signal_name == "position" and signal_direction == "output":
+                            hal_pin = f"joint.{joint_n}.motor-pos-cmd"
+                            gAll.edge(f"{title}:signal_{signal_name}", f"hal:{hal_pin}", dir="back", color="white", fontcolor="white")
+                            lcports.append(f"<{hal_pin}>{hal_pin}")
+                        elif signal_name == "velocity":
+                            hal_pin = f"joint.{joint_n}.motor-pos-cmd"
+                            gAll.edge(f"{title}:signal_{signal_name}", f"hal:{hal_pin}", dir="back", color="white", fontcolor="white")
+                            lcports.append(f"<{hal_pin}>{hal_pin}")
+
                     if function:
                         gAll.edge(f"{title}:signal_{signal_name}", f"hal:{function}", dir=direction_mapping.get(signal_direction, "none"), color="white", fontcolor="white")
                         lcports.append(f"<{function}>{function}")
@@ -805,6 +839,9 @@ class WinForm(QWidget):
                     style="rounded, filled",
                     fillcolor="lightblue",
                 )
+
+                if plugin_instance.plugin_setup.get("is_joint", False):
+                    joint_n += 1
 
         label = f"{{ {{{' | '.join(sportsl)}}} | {fpga_name} | {{{' | '.join(sportsr)}}} }}"
         gAll.node(f"{fpga_name}", shape="record", label=label, fontsize="11pt", style="rounded, filled", fillcolor="yellow")
