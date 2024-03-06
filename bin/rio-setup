@@ -226,13 +226,10 @@ class WinForm(QWidget):
         self.addons = {}
         for addon_path in glob.glob(f"{riocore_path}/generator/addons/*/config.py"):
             addon_name = addon_path.split("/")[-2]
-            print(f"loading addon: {addon_name}")
             self.addons[addon_name] = importlib.import_module(".config", f"riocore.generator.addons.{addon_name}")
 
         self.json_load()
         self.config_load()
-        # self.load_tree()
-        # self.display()
         self.config_original = self.clean_config(self.config)
         self.config_checked = {}
 
