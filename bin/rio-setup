@@ -604,8 +604,7 @@ class WinForm(QWidget):
         gAll.attr(bgcolor="black")
 
         lcports = []
-        sportsr = []
-        sportsl = []
+        sports = []
 
         # show slots
         for slot in self.board.get("slots", []):
@@ -619,7 +618,7 @@ class WinForm(QWidget):
                 mportsr.append(f"<{pin_id}>{pin_name}")
 
             label = f"{{ {{{' | '.join(mportsl)}}} | {slot_name} | {{{' | '.join(mportsr)}}} }}"
-            sportsr.append(label)
+            sports.append(label)
 
         joint_n = 0
         for plugin_instance in self.plugins.plugin_instances:
@@ -681,7 +680,7 @@ class WinForm(QWidget):
                 gAll.edge(f"{con_dev}:{con_pin}", f"{title}:{pin_name}", dir=arrow_dir, color=color)
 
                 if pin and ":" not in pin and pin not in self.expansion_pins:
-                    sportsr.append(f"<{pin}>{pin}")
+                    sports.append(f"<{pin}>{pin}")
 
                 num += 1
 
@@ -843,10 +842,10 @@ class WinForm(QWidget):
                 if plugin_instance.plugin_setup.get("is_joint", False):
                     joint_n += 1
 
-        label = f"{{ {{{' | '.join(sportsl)}}} | {fpga_name} | {{{' | '.join(sportsr)}}} }}"
+        label = f"{{ {{ {fpga_name}\\nPhysical-Pins | {' | '.join(sports)}}} }}"
         gAll.node(f"{fpga_name}", shape="record", label=label, fontsize="11pt", style="rounded, filled", fillcolor="yellow")
 
-        label = f"{{ {{{' | '.join(lcports)}}} | LinuxCNC-HAL }}"
+        label = f"{{ {{ LinuxCNC\\nHAL-Pins | {' | '.join(lcports)}}} }}"
         gAll.node(
             "hal",
             shape="record",
