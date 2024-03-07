@@ -12,7 +12,23 @@ from functools import partial
 
 import riocore
 from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtWidgets import QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QListWidget, QPushButton, QSlider, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import (
+    QApplication,
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QPushButton,
+    QSlider,
+    QVBoxLayout,
+    QWidget,
+    QTabWidget,
+)
 
 STYLESHEET = """
     background-color: #444444;
@@ -45,6 +61,9 @@ class WinForm(QWidget):
         layout = QGridLayout()
         self.setLayout(layout)
 
+        self.tabwidget = QTabWidget()
+        layout.addWidget(self.tabwidget, 0, 0)
+
         if os.path.isfile(args.config):
             self.config_file = args.config
         elif os.path.isfile(f"{riocore_path}/configs/{args.config}"):
@@ -67,43 +86,57 @@ class WinForm(QWidget):
 
         self.haldata = self.project.haldata()
 
-        row = 0
+        plugin_types = set()
         for plugin_instance, haldata in self.haldata.items():
-            row += 1
-            layout.addWidget(QLabel(f"{plugin_instance.title} ({plugin_instance.NAME})"), row, 0)
-            for hdir in ("output", "input", "inout"):
-                for halname, signal in haldata.get(hdir, {}).items():
-                    value = signal["value"]
-                    value_format = signal.get("format", "d")
-                    value_unit = signal.get("unit", "")
-                    value_str = f"%{value_format}" % (value,)
-                    halname_np = halname.split(".", 1)[-1]
-                    layout.addWidget(QLabel(f"    {halname_np}"), row, 1)
-                    if signal.get("bool"):
-                        signal[f"widget_{plugin_instance.title}"] = QCheckBox()
-                        signal[f"widget_{plugin_instance.title}"].setChecked(value)
-                        signal[f"widget_{plugin_instance.title}"].setStyleSheet(STYLESHEET_CHECKBOX)
-                    elif signal.get("direction") == "input":
-                        signal[f"widget_{plugin_instance.title}"] = QLabel("")
-                        signal[f"widget_{plugin_instance.title}"].setText(f"{value_str} {value_unit}")
-                    else:
-                        vmin = signal.get("userconfig", {}).get("min", signal.get("min", 0))
-                        vmax = signal.get("userconfig", {}).get("max", signal.get("max", 100000))
-                        signal[f"widget_{plugin_instance.title}"] = QSlider(Qt.Horizontal)
-                        signal[f"widget_{plugin_instance.title}"].setMinimum(vmin)
-                        signal[f"widget_{plugin_instance.title}"].setMaximum(vmax)
-                        signal[f"widget_{plugin_instance.title}"].setSingleStep(1)
-                        signal[f"widget_{plugin_instance.title}"].setPageStep((vmax - vmin) // 10)
-                        # signal[f"widget_{plugin_instance.title}"].setTickPosition(QSlider.TicksBelow)
-                        signal[f"widget_{plugin_instance.title}"].setValue(value)
-                        button = QPushButton("0")
-                        button.clicked.connect(partial(self.slider_reset, signal[f"widget_{plugin_instance.title}"]))
-                        layout.addWidget(button, row, 3)
-                        signal[f"widget_out_{plugin_instance.title}"] = QLabel("      ")
-                        layout.addWidget(signal[f"widget_out_{plugin_instance.title}"], row, 4)
+            if haldata.get("input") or haldata.get("output"):
+                plugin_types.add(plugin_instance.NAME)
 
-                    layout.addWidget(signal[f"widget_{plugin_instance.title}"], row, 2)
-                    row += 1
+        for plugin_type in plugin_types:
+            tab_widget = QWidget()
+            self.tabwidget.addTab(tab_widget, plugin_type.title())
+            tab_layout = QGridLayout()
+            tab_widget.setLayout(tab_layout)
+
+            row = 0
+            for plugin_instance, haldata in self.haldata.items():
+                if plugin_instance.NAME != plugin_type:
+                    continue
+
+                row += 1
+                tab_layout.addWidget(QLabel(f"{plugin_instance.title} ({plugin_instance.NAME})"), row, 0)
+                for hdir in ("output", "input", "inout"):
+                    for halname, signal in haldata.get(hdir, {}).items():
+                        value = signal["value"]
+                        value_format = signal.get("format", "d")
+                        value_unit = signal.get("unit", "")
+                        value_str = f"%{value_format}" % (value,)
+                        halname_np = halname.split(".", 1)[-1]
+                        tab_layout.addWidget(QLabel(f"    {halname_np}"), row, 1)
+                        if signal.get("bool"):
+                            signal[f"widget_{plugin_instance.title}"] = QCheckBox()
+                            signal[f"widget_{plugin_instance.title}"].setChecked(value)
+                            signal[f"widget_{plugin_instance.title}"].setStyleSheet(STYLESHEET_CHECKBOX)
+                        elif signal.get("direction") == "input":
+                            signal[f"widget_{plugin_instance.title}"] = QLabel("")
+                            signal[f"widget_{plugin_instance.title}"].setText(f"{value_str} {value_unit}")
+                        else:
+                            vmin = signal.get("userconfig", {}).get("min", signal.get("min", 0))
+                            vmax = signal.get("userconfig", {}).get("max", signal.get("max", 100000))
+                            signal[f"widget_{plugin_instance.title}"] = QSlider(Qt.Horizontal)
+                            signal[f"widget_{plugin_instance.title}"].setMinimum(vmin)
+                            signal[f"widget_{plugin_instance.title}"].setMaximum(vmax)
+                            signal[f"widget_{plugin_instance.title}"].setSingleStep(1)
+                            signal[f"widget_{plugin_instance.title}"].setPageStep((vmax - vmin) // 10)
+                            # signal[f"widget_{plugin_instance.title}"].setTickPosition(QSlider.TicksBelow)
+                            signal[f"widget_{plugin_instance.title}"].setValue(value)
+                            button = QPushButton("0")
+                            button.clicked.connect(partial(self.slider_reset, signal[f"widget_{plugin_instance.title}"]))
+                            tab_layout.addWidget(button, row, 3)
+                            signal[f"widget_out_{plugin_instance.title}"] = QLabel("      ")
+                            tab_layout.addWidget(signal[f"widget_out_{plugin_instance.title}"], row, 4)
+
+                        tab_layout.addWidget(signal[f"widget_{plugin_instance.title}"], row, 2)
+                        row += 1
 
         self.timer = QTimer()
         self.timer.timeout.connect(self.runTimer)
