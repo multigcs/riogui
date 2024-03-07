@@ -1083,6 +1083,8 @@ class WinForm(QWidget):
 
         def sort_key(a):
             col = a[idx]
+            if not col:
+                return ""
             numbers = re.findall(r"\d+", col)
             for number in numbers:
                 col = col.replace(number, f"{int(number):09d}")
