@@ -91,7 +91,7 @@ class WinForm(QWidget):
             if haldata.get("input") or haldata.get("output"):
                 plugin_types.add(plugin_instance.NAME)
 
-        for plugin_type in plugin_types:
+        for plugin_type in sorted(plugin_types):
             tab_widget = QWidget()
             self.tabwidget.addTab(tab_widget, plugin_type.title())
             tab_layout = QGridLayout()
