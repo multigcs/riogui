@@ -29,6 +29,6 @@ setup(
     license="LICENSE",
     description="riogui",
     long_description=open("README.md").read(),
-    install_requires=["riocore>=0.0.4", "PyQt5>=5.15", "graphviz>=0.20"],
+    install_requires=["riocore>=0.0.4", "PyQt5>=5.15", "graphviz>=0.20", "pyqtgraph>=0.13.3"],
     include_package_data=True,
 )
