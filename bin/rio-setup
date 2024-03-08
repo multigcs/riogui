@@ -1408,6 +1408,9 @@ class WinForm(QWidget):
             plugin_name.setText(selected)
             info.setText(infotext)
             descriptiontext = plugins.plugin_instances[0].DESCRIPTION
+            if not descriptiontext:
+                descriptiontext = plugins.info(selected)
+
             description.clear()
             description.insertPlainText(descriptiontext)
 
