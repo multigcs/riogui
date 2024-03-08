@@ -42,7 +42,7 @@ STYLESHEET_CHECKBOX = """
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--debug", "-d", help="debug", default=False, action="store_true")
-parser.add_argument("--interval", "-i", help="interval", type=int, default=10)
+parser.add_argument("--interval", "-i", help="interval", type=int, default=50)
 parser.add_argument("--vertical", "-v", help="vertical tabs", default=False, action="store_true")
 parser.add_argument("--graphs", "-g", help="show graphs", default=False, action="store_true")
 parser.add_argument("--buffer", "-b", help="buffer size for graphs", type=int, default=100)
@@ -101,11 +101,14 @@ class WinForm(QWidget):
             if haldata.get("input") or haldata.get("output"):
                 plugin_types.add(plugin_instance.NAME)
 
-        self.time = list(range(args.buffer))
+        self.ucount = 0
         if args.graphs:
             import pyqtgraph as pg
 
-        for plugin_type in sorted(plugin_types):
+            self.time = list(range(args.buffer))
+            pen = pg.mkPen(color=(255, 255, 255))
+
+        for tab_num, plugin_type in enumerate(sorted(plugin_types)):
             tab_widget = QWidget()
             self.tabwidget.addTab(tab_widget, plugin_type.title())
             tab_layout = QGridLayout()
@@ -126,27 +129,20 @@ class WinForm(QWidget):
                         value_str = f"%{value_format}" % (value,)
                         halname_np = halname.split(".", 1)[-1]
                         tab_layout.addWidget(QLabel(f"    {halname_np}"), row, 1)
-
                         wid = f"widget_{plugin_instance.title}"
                         gid = f"graph_{plugin_instance.title}"
-
                         if signal.get("bool"):
                             signal[wid] = QCheckBox()
                             signal[wid].setChecked(value)
                             signal[wid].setStyleSheet(STYLESHEET_CHECKBOX)
-                        elif signal.get("direction") == "input":
-                            signal[wid] = QLabel("")
-                            signal[wid].setText(f"{value_str} {value_unit}")
-                            if args.graphs:
-                                gmin = 0
-                                gmax = 1
-                                signal[f"graph_minmax_{plugin_instance.title}"] = (gmin, gmax)
 
+                            if args.graphs and signal.get("direction") == "input":
+                                signal[f"graph_tab_{plugin_instance.title}"] = tab_num
+                                signal[f"graph_minmax_{plugin_instance.title}"] = (0, 1)
                                 plot_graph = pg.PlotWidget()
                                 plot_graph.setBackground("black")
-                                pen = pg.mkPen(color=(255, 255, 255))
                                 plot_graph.showGrid(x=True, y=True)
-                                plot_graph.setYRange(gmin, gmax)
+                                plot_graph.setYRange(0, 1)
                                 signal[f"graphw_{plugin_instance.title}"] = plot_graph
                                 signal[f"history_{plugin_instance.title}"] = [0 for _ in range(args.buffer)]
                                 signal[gid] = plot_graph.plot(
@@ -154,9 +150,26 @@ class WinForm(QWidget):
                                     signal[f"history_{plugin_instance.title}"],
                                     name="Value",
                                     pen=pen,
-                                    # symbol="+",
-                                    # symbolSize=5,
-                                    # symbolBrush="b",
+                                )
+                                tab_layout.addWidget(plot_graph, row, 3)
+
+                        elif signal.get("direction") == "input":
+                            signal[wid] = QLabel("")
+                            signal[wid].setText(f"{value_str} {value_unit}")
+                            if args.graphs:
+                                signal[f"graph_tab_{plugin_instance.title}"] = tab_num
+                                signal[f"graph_minmax_{plugin_instance.title}"] = (0, 1)
+                                plot_graph = pg.PlotWidget()
+                                plot_graph.setBackground("black")
+                                plot_graph.showGrid(x=True, y=True)
+                                plot_graph.setYRange(0, 1)
+                                signal[f"graphw_{plugin_instance.title}"] = plot_graph
+                                signal[f"history_{plugin_instance.title}"] = [0 for _ in range(args.buffer)]
+                                signal[gid] = plot_graph.plot(
+                                    self.time,
+                                    signal[f"history_{plugin_instance.title}"],
+                                    name="Value",
+                                    pen=pen,
                                 )
                                 tab_layout.addWidget(plot_graph, row, 3)
                         else:
@@ -267,6 +280,12 @@ class WinForm(QWidget):
 
     def runTimer(self):
         try:
+            if self.ucount > 10:
+                self.ucount = 0
+            else:
+                self.ucount += 1
+
+            tab_num_active = self.tabwidget.currentIndex()
             for plugin_instance, haldata in self.haldata.items():
                 for halname, signal in haldata.get("output", {}).items():
                     if signal.get("bool"):
@@ -311,8 +330,9 @@ class WinForm(QWidget):
 
             self.project.rxdata_set(rxdata)
 
-            self.time = self.time[1:]
-            self.time.append(self.time[-1] + 1)
+            if args.graphs:
+                self.time = self.time[1:]
+                self.time.append(self.time[-1] + 1)
 
             for plugin_instance, haldata in self.haldata.items():
                 for halname, signal in haldata.get("input", {}).items():
@@ -322,6 +342,22 @@ class WinForm(QWidget):
                     value_str = f"%{value_format}" % (value,)
                     if signal.get("bool"):
                         signal[f"widget_{plugin_instance.title}"].setChecked(value)
+                        if args.graphs and signal.get("direction") == "input":
+                            gmin, gmax = signal[f"graph_minmax_{plugin_instance.title}"]
+                            mm_changed = False
+                            if gmax < value:
+                                gmax = value
+                                mm_changed = True
+                            if gmin > value:
+                                gmin = value
+                                mm_changed = True
+                            if mm_changed:
+                                signal[f"graph_minmax_{plugin_instance.title}"] = (gmin, gmax)
+                                signal[f"graphw_{plugin_instance.title}"].setYRange(gmin, gmax)
+                            signal[f"history_{plugin_instance.title}"] = signal[f"history_{plugin_instance.title}"][1:]
+                            signal[f"history_{plugin_instance.title}"].append(value)
+                            if self.ucount == 0:
+                                signal[f"graph_{plugin_instance.title}"].setData(self.time, signal[f"history_{plugin_instance.title}"])
                     elif signal.get("direction") == "input":
                         signal[f"widget_{plugin_instance.title}"].setText(f"{value_str} {value_unit}")
                         if args.graphs:
@@ -336,10 +372,10 @@ class WinForm(QWidget):
                             if mm_changed:
                                 signal[f"graph_minmax_{plugin_instance.title}"] = (gmin, gmax)
                                 signal[f"graphw_{plugin_instance.title}"].setYRange(gmin, gmax)
-
                             signal[f"history_{plugin_instance.title}"] = signal[f"history_{plugin_instance.title}"][1:]
                             signal[f"history_{plugin_instance.title}"].append(value)
-                            signal[f"graph_{plugin_instance.title}"].setData(self.time, signal[f"history_{plugin_instance.title}"])
+                            if self.ucount == 0:
+                                signal[f"graph_{plugin_instance.title}"].setData(self.time, signal[f"history_{plugin_instance.title}"])
                     else:
                         signal[f"widget_{plugin_instance.title}"].setValue(value)
             if args.debug:
