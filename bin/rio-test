@@ -43,6 +43,7 @@ STYLESHEET_CHECKBOX = """
 parser = argparse.ArgumentParser()
 parser.add_argument("--debug", "-d", help="debug", default=False, action="store_true")
 parser.add_argument("--interval", "-i", help="interval", type=int, default=10)
+parser.add_argument("--vertical", "-v", help="vertical tabs", default=False, action="store_true")
 parser.add_argument("config", help="config", nargs="?", type=str, default=None)
 parser.add_argument("target", help="target", nargs="?", type=str, default="")
 args = parser.parse_args()
@@ -55,6 +56,7 @@ class WinForm(QWidget):
         super(WinForm, self).__init__(parent)
         self.setWindowTitle("LinuxCNC-RIO - TestGui")
         self.setMinimumWidth(800)
+        self.setMinimumHeight(600)
         self.setStyleSheet(STYLESHEET)
 
         self.listFile = QListWidget()
@@ -62,6 +64,11 @@ class WinForm(QWidget):
         self.setLayout(layout)
 
         self.tabwidget = QTabWidget()
+        self.tabwidget.setMovable(True)
+        if args.vertical:
+            self.tabwidget.setTabPosition(QTabWidget.West)
+            self.tabwidget.setDocumentMode(True)
+
         layout.addWidget(self.tabwidget, 0, 0)
 
         if os.path.isfile(args.config):
