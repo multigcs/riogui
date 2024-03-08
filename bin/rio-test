@@ -11,6 +11,7 @@ import traceback
 from functools import partial
 
 import riocore
+import pyqtgraph as pg
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import (
     QApplication,
@@ -44,9 +45,12 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--debug", "-d", help="debug", default=False, action="store_true")
 parser.add_argument("--interval", "-i", help="interval", type=int, default=10)
 parser.add_argument("--vertical", "-v", help="vertical tabs", default=False, action="store_true")
+parser.add_argument("--graphs", "-g", help="show graphs", default=False, action="store_true")
+parser.add_argument("--buffer", "-b", help="buffer size for graphs", type=int, default=100)
 parser.add_argument("config", help="config", nargs="?", type=str, default=None)
 parser.add_argument("target", help="target", nargs="?", type=str, default="")
 args = parser.parse_args()
+
 
 riocore_path = os.path.dirname(riocore.__file__)
 
@@ -98,6 +102,8 @@ class WinForm(QWidget):
             if haldata.get("input") or haldata.get("output"):
                 plugin_types.add(plugin_instance.NAME)
 
+        self.time = list(range(args.buffer))
+
         for plugin_type in sorted(plugin_types):
             tab_widget = QWidget()
             self.tabwidget.addTab(tab_widget, plugin_type.title())
@@ -119,30 +125,53 @@ class WinForm(QWidget):
                         value_str = f"%{value_format}" % (value,)
                         halname_np = halname.split(".", 1)[-1]
                         tab_layout.addWidget(QLabel(f"    {halname_np}"), row, 1)
+
+                        wid = f"widget_{plugin_instance.title}"
+                        gid = f"graph_{plugin_instance.title}"
+
                         if signal.get("bool"):
-                            signal[f"widget_{plugin_instance.title}"] = QCheckBox()
-                            signal[f"widget_{plugin_instance.title}"].setChecked(value)
-                            signal[f"widget_{plugin_instance.title}"].setStyleSheet(STYLESHEET_CHECKBOX)
+                            signal[wid] = QCheckBox()
+                            signal[wid].setChecked(value)
+                            signal[wid].setStyleSheet(STYLESHEET_CHECKBOX)
                         elif signal.get("direction") == "input":
-                            signal[f"widget_{plugin_instance.title}"] = QLabel("")
-                            signal[f"widget_{plugin_instance.title}"].setText(f"{value_str} {value_unit}")
+                            signal[wid] = QLabel("")
+                            signal[wid].setText(f"{value_str} {value_unit}")
+                            if args.graphs:
+                                vmin = signal.get("userconfig", {}).get("min", signal.get("min", 0))
+                                vmax = signal.get("userconfig", {}).get("max", signal.get("max", 100000))
+                                plot_graph = pg.PlotWidget()
+                                plot_graph.setBackground("black")
+                                pen = pg.mkPen(color=(255, 255, 255))
+                                plot_graph.showGrid(x=True, y=True)
+                                plot_graph.setYRange(vmin, vmax)
+                                signal[f"history_{plugin_instance.title}"] = [0 for _ in range(args.buffer)]
+                                signal[gid] = plot_graph.plot(
+                                    self.time,
+                                    signal[f"history_{plugin_instance.title}"],
+                                    name="Value",
+                                    pen=pen,
+                                    symbol="+",
+                                    symbolSize=5,
+                                    symbolBrush="b",
+                                )
+                                tab_layout.addWidget(plot_graph, row, 3)
                         else:
                             vmin = signal.get("userconfig", {}).get("min", signal.get("min", 0))
                             vmax = signal.get("userconfig", {}).get("max", signal.get("max", 100000))
-                            signal[f"widget_{plugin_instance.title}"] = QSlider(Qt.Horizontal)
-                            signal[f"widget_{plugin_instance.title}"].setMinimum(vmin)
-                            signal[f"widget_{plugin_instance.title}"].setMaximum(vmax)
-                            signal[f"widget_{plugin_instance.title}"].setSingleStep(1)
-                            signal[f"widget_{plugin_instance.title}"].setPageStep((vmax - vmin) // 10)
-                            # signal[f"widget_{plugin_instance.title}"].setTickPosition(QSlider.TicksBelow)
-                            signal[f"widget_{plugin_instance.title}"].setValue(value)
+                            signal[wid] = QSlider(Qt.Horizontal)
+                            signal[wid].setMinimum(vmin)
+                            signal[wid].setMaximum(vmax)
+                            signal[wid].setSingleStep(1)
+                            signal[wid].setPageStep((vmax - vmin) // 10)
+                            # signal[wid].setTickPosition(QSlider.TicksBelow)
+                            signal[wid].setValue(value)
                             button = QPushButton("0")
-                            button.clicked.connect(partial(self.slider_reset, signal[f"widget_{plugin_instance.title}"]))
+                            button.clicked.connect(partial(self.slider_reset, signal[wid]))
                             tab_layout.addWidget(button, row, 3)
                             signal[f"widget_out_{plugin_instance.title}"] = QLabel("      ")
                             tab_layout.addWidget(signal[f"widget_out_{plugin_instance.title}"], row, 4)
 
-                        tab_layout.addWidget(signal[f"widget_{plugin_instance.title}"], row, 2)
+                        tab_layout.addWidget(signal[wid], row, 2)
                         row += 1
 
         self.timer = QTimer()
@@ -271,12 +300,15 @@ class WinForm(QWidget):
             if not args.debug:
                 if len(rxdata) != self.project.buffer_bytes:
                     print(f"ERROR: reveived data have wrong size: {len(rxdata)} / {self.project.buffer_bytes}")
-                    return
+                    # return
                 if rxdata[0] != 0x61 or rxdata[1] != 0x74 or rxdata[2] != 0x61 and rxdata[3] != 0x64:
                     print(f"ERROR: reveived data have wrong header: 0x{rxdata[0]:X} 0x{rxdata[1]:X} 0x{rxdata[2]:X} 0x{rxdata[3]:X}")
-                    return
+                    # return
 
             self.project.rxdata_set(rxdata)
+
+            self.time = self.time[1:]
+            self.time.append(self.time[-1] + 1)
 
             for plugin_instance, haldata in self.haldata.items():
                 for halname, signal in haldata.get("input", {}).items():
@@ -288,13 +320,10 @@ class WinForm(QWidget):
                         signal[f"widget_{plugin_instance.title}"].setChecked(value)
                     elif signal.get("direction") == "input":
                         signal[f"widget_{plugin_instance.title}"].setText(f"{value_str} {value_unit}")
-                        """
-                        print(halname, value)
-                        if halname == "tm1638b8s7l80.svalue":
-                            s = f"{value:032b}"
-                            for n, c in enumerate(s):
-                                print(31-n, c)
-                        """
+                        if args.graphs:
+                            signal[f"history_{plugin_instance.title}"] = signal[f"history_{plugin_instance.title}"][1:]
+                            signal[f"history_{plugin_instance.title}"].append(value)
+                            signal[f"graph_{plugin_instance.title}"].setData(self.time, signal[f"history_{plugin_instance.title}"])
                     else:
                         signal[f"widget_{plugin_instance.title}"].setValue(value)
             if args.debug:
