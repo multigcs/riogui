@@ -11,7 +11,6 @@ import traceback
 from functools import partial
 
 import riocore
-import pyqtgraph as pg
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import (
     QApplication,
@@ -103,6 +102,8 @@ class WinForm(QWidget):
                 plugin_types.add(plugin_instance.NAME)
 
         self.time = list(range(args.buffer))
+        if args.graphs:
+            import pyqtgraph as pg
 
         for plugin_type in sorted(plugin_types):
             tab_widget = QWidget()
@@ -137,22 +138,25 @@ class WinForm(QWidget):
                             signal[wid] = QLabel("")
                             signal[wid].setText(f"{value_str} {value_unit}")
                             if args.graphs:
-                                vmin = signal.get("userconfig", {}).get("min", signal.get("min", 0))
-                                vmax = signal.get("userconfig", {}).get("max", signal.get("max", 100000))
+                                gmin = 0
+                                gmax = 1
+                                signal[f"graph_minmax_{plugin_instance.title}"] = (gmin, gmax)
+
                                 plot_graph = pg.PlotWidget()
                                 plot_graph.setBackground("black")
                                 pen = pg.mkPen(color=(255, 255, 255))
                                 plot_graph.showGrid(x=True, y=True)
-                                plot_graph.setYRange(vmin, vmax)
+                                plot_graph.setYRange(gmin, gmax)
+                                signal[f"graphw_{plugin_instance.title}"] = plot_graph
                                 signal[f"history_{plugin_instance.title}"] = [0 for _ in range(args.buffer)]
                                 signal[gid] = plot_graph.plot(
                                     self.time,
                                     signal[f"history_{plugin_instance.title}"],
                                     name="Value",
                                     pen=pen,
-                                    symbol="+",
-                                    symbolSize=5,
-                                    symbolBrush="b",
+                                    # symbol="+",
+                                    # symbolSize=5,
+                                    # symbolBrush="b",
                                 )
                                 tab_layout.addWidget(plot_graph, row, 3)
                         else:
@@ -321,6 +325,18 @@ class WinForm(QWidget):
                     elif signal.get("direction") == "input":
                         signal[f"widget_{plugin_instance.title}"].setText(f"{value_str} {value_unit}")
                         if args.graphs:
+                            gmin, gmax = signal[f"graph_minmax_{plugin_instance.title}"]
+                            mm_changed = False
+                            if gmax < value:
+                                gmax = value
+                                mm_changed = True
+                            if gmin > value:
+                                gmin = value
+                                mm_changed = True
+                            if mm_changed:
+                                signal[f"graph_minmax_{plugin_instance.title}"] = (gmin, gmax)
+                                signal[f"graphw_{plugin_instance.title}"].setYRange(gmin, gmax)
+
                             signal[f"history_{plugin_instance.title}"] = signal[f"history_{plugin_instance.title}"][1:]
                             signal[f"history_{plugin_instance.title}"].append(value)
                             signal[f"graph_{plugin_instance.title}"].setData(self.time, signal[f"history_{plugin_instance.title}"])
