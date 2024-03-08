@@ -493,6 +493,8 @@ class WinForm(QWidget):
                     self.pinlist.append(pin_id)
 
         def sort_key(value):
+            if not value:
+                return ""
             numbers = re.findall(r"\d+", value)
             for number in numbers:
                 value = value.replace(number, f"{int(number):09d}")
@@ -1318,6 +1320,9 @@ class WinForm(QWidget):
     def add_module(self, widget):
         while True:
             print("select")
+            ret = self.select_module()
+            if not ret:
+                return
             slot_name, module_name = self.select_module()
             if not module_name or not slot_name:
                 print("cancel")
