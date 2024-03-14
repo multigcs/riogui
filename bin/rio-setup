@@ -82,6 +82,7 @@ class WinForm(QWidget):
         self.tabwidget = QTabWidget()
         layout.addWidget(self.tabwidget, 0, 1)
         self.gateware_hash = None
+        self.firmware_hash = None
 
         self.compile_sub = None
         self.compile_start = 0
@@ -124,17 +125,24 @@ class WinForm(QWidget):
         # self.jsonpreview.verticalScrollBar().setValue(0)
         self.tabwidget.addTab(self.jsonpreview, "Json-Preview")
 
+        self.linuxcnc_tabwidget = QTabWidget()
+        self.tabwidget.addTab(self.linuxcnc_tabwidget, "LinuxCNC")
+
         self.gateware_tabwidget = QTabWidget()
         self.tabwidget.addTab(self.gateware_tabwidget, "Gateware")
 
-        self.linuxcnc_tabwidget = QTabWidget()
-        self.tabwidget.addTab(self.linuxcnc_tabwidget, "LinuxCNC")
+        self.firmware_tabwidget = QTabWidget()
+        self.tabwidget.addTab(self.firmware_tabwidget, "Firmware")
 
         self.gateware = {
             "rio.v": QPlainTextEdit(),
             "Makefile": QPlainTextEdit(),
             "Compile-Output": QPlainTextEdit(),
             "Flash-Output": QPlainTextEdit(),
+        }
+        self.firmware = {
+            "src/main.ino": QPlainTextEdit(),
+            "platformio.ini": QPlainTextEdit(),
         }
         self.linuxcnc = {
             "rio.ini": QPlainTextEdit(),
@@ -148,6 +156,10 @@ class WinForm(QWidget):
             widget.clear()
             widget.insertPlainText("")
             self.gateware_tabwidget.addTab(widget, filename)
+        for filename, widget in self.firmware.items():
+            widget.clear()
+            widget.insertPlainText("")
+            self.firmware_tabwidget.addTab(widget, filename)
         for filename, widget in self.linuxcnc.items():
             widget.clear()
             widget.insertPlainText("")
@@ -267,24 +279,45 @@ class WinForm(QWidget):
 
         # checking gateware
         hash_compiled = ""
-        hash_compiled_file = f"Output/{config_name}/Gateware/hash_compiled.txt"
-        if os.path.isfile(hash_compiled_file):
-            hash_compiled = open(hash_compiled_file, "r").read()
-        if hash_compiled == self.gateware_hash:
-            self.info_compiled.setChecked(True)
-            self.button_flash.setEnabled(True)
-        else:
-            self.info_compiled.setChecked(False)
-            self.button_flash.setEnabled(False)
 
-        hash_flashed = ""
-        hash_flashed_file = f"Output/{config_name}/Gateware/hash_flashed.txt"
-        if os.path.isfile(hash_flashed_file):
-            hash_flashed = open(hash_flashed_file, "r").read()
-        if hash_flashed == self.gateware_hash:
-            self.info_flashed.setChecked(True)
+        if self.IS_FIRMWARE:
+            hash_compiled_file = f"Output/{config_name}/Firmware/hash_compiled.txt"
+            if os.path.isfile(hash_compiled_file):
+                hash_compiled = open(hash_compiled_file, "r").read()
+            if hash_compiled == self.firmware_hash:
+                self.info_compiled.setChecked(True)
+                self.button_flash.setEnabled(True)
+            else:
+                self.info_compiled.setChecked(False)
+                self.button_flash.setEnabled(False)
+
+            hash_flashed = ""
+            hash_flashed_file = f"Output/{config_name}/Firmware/hash_flashed.txt"
+            if os.path.isfile(hash_flashed_file):
+                hash_flashed = open(hash_flashed_file, "r").read()
+            if hash_flashed == self.firmware_hash:
+                self.info_flashed.setChecked(True)
+            else:
+                self.info_flashed.setChecked(False)
         else:
-            self.info_flashed.setChecked(False)
+            hash_compiled_file = f"Output/{config_name}/Gateware/hash_compiled.txt"
+            if os.path.isfile(hash_compiled_file):
+                hash_compiled = open(hash_compiled_file, "r").read()
+            if hash_compiled == self.gateware_hash:
+                self.info_compiled.setChecked(True)
+                self.button_flash.setEnabled(True)
+            else:
+                self.info_compiled.setChecked(False)
+                self.button_flash.setEnabled(False)
+
+            hash_flashed = ""
+            hash_flashed_file = f"Output/{config_name}/Gateware/hash_flashed.txt"
+            if os.path.isfile(hash_flashed_file):
+                hash_flashed = open(hash_flashed_file, "r").read()
+            if hash_flashed == self.gateware_hash:
+                self.info_flashed.setChecked(True)
+            else:
+                self.info_flashed.setChecked(False)
 
     def runTimer(self):
         if self.request_load_tree > 1:
@@ -447,6 +480,15 @@ class WinForm(QWidget):
                 "setup": module_setup,
                 "instances": mplugins.plugin_instances,
             }
+
+        if self.board.get("toolchain") == "platformio":
+            self.IS_FIRMWARE = True
+            self.tabwidget.setTabVisible(5, False)
+            self.tabwidget.setTabVisible(6, True)
+        else:
+            self.IS_FIRMWARE = False
+            self.tabwidget.setTabVisible(5, True)
+            self.tabwidget.setTabVisible(6, False)
 
         # loading plugins
         self.plugins = riocore.Plugins()
@@ -1544,21 +1586,29 @@ class WinForm(QWidget):
         config_name = self.config.get("name")
         self.generate(output_path, preview=preview)
         try:
-            for filename, widget in self.gateware.items():
-                if not filename.endswith("-Output"):
-                    file_content = open(f"{output_path}/{config_name}/Gateware/{filename}", "r").read()
-                    widget.clear()
-                    widget.insertPlainText(file_content)
-                    if filename == "rio.v":
-                        hash_md5 = hashlib.md5()
-                        hash_md5.update(file_content.encode())
-                        self.gateware_hash = hash_md5.hexdigest()
+            if not self.IS_FIRMWARE:
+                for filename, widget in self.gateware.items():
+                    if not filename.endswith("-Output"):
+                        file_content = open(f"{output_path}/{config_name}/Gateware/{filename}", "r").read()
+                        widget.clear()
+                        widget.insertPlainText(file_content)
+                        if filename == "rio.v":
+                            hash_md5 = hashlib.md5()
+                            hash_md5.update(file_content.encode())
+                            self.gateware_hash = hash_md5.hexdigest()
+            else:
+                for filename, widget in self.firmware.items():
+                    if not filename.endswith("-Output"):
+                        file_content = open(f"{output_path}/{config_name}/Firmware/{filename}", "r").read()
+                        widget.clear()
+                        widget.insertPlainText(file_content)
+                        if filename == "src/main.ino":
+                            hash_md5 = hashlib.md5()
+                            hash_md5.update(file_content.encode())
+                            self.firmware_hash = hash_md5.hexdigest()
 
             for filename, widget in self.linuxcnc.items():
-                if filename == "rio.c":
-                    file_content = open(f"{output_path}/{config_name}/LinuxCNC/Component/{filename}", "r").read()
-                else:
-                    file_content = open(f"{output_path}/{config_name}/LinuxCNC/Configuration/{filename}", "r").read()
+                file_content = open(f"{output_path}/{config_name}/LinuxCNC/{filename}", "r").read()
                 widget.clear()
                 widget.insertPlainText(file_content)
         except Exception as error:
