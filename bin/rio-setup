@@ -1327,7 +1327,7 @@ class WinForm(QWidget):
             "boardcfg": {"type": "select", "options": self.boards},
             "protocol": {"type": "select", "options": self.interfaces, "default": "UDP"},
             "axis": {"type": int, "min": 0, "max": 9, "default": 3},
-            "machinetype": {"type": "select", "options": ["mill", "lathe"]},
+            "machinetype": {"type": "select", "options": ["mill", "lathe", "corexy"]},
             "gui": {"type": "select", "options": ["axis", "qtdragon", "tklinuxcnc", "touchy", "probe_basic"], "default": "axis"},
         }.items():
             aitem = MyStandardItem()
@@ -1937,6 +1937,11 @@ class WinForm(QWidget):
 
             signal_setup["net"] = {"type": "select", "options": options_net}
             signal_setup["function"] = {"type": "select", "options": options_func}
+
+            if "source" not in signal_defaults and not signal_defaults.get("bool"):
+                signal_setup["scale"] = {"type": float, "default": 1.0}
+                signal_setup["offset"] = {"type": float, "default": 0.0}
+
             if signal_direction == "output":
                 signal_setup["setp"] = {"type": str, "default": ""}
 
