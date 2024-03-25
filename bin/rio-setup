@@ -1328,6 +1328,7 @@ class WinForm(QWidget):
             "protocol": {"type": "select", "options": self.interfaces, "default": "UDP"},
             "axis": {"type": int, "min": 0, "max": 9, "default": 3},
             "machinetype": {"type": "select", "options": ["mill", "lathe", "corexy"]},
+            "toolchange": {"type": "select", "options": ["manual", "auto"], "default": "manual"},
             "gui": {"type": "select", "options": ["axis", "qtdragon", "tklinuxcnc", "touchy", "probe_basic"], "default": "axis"},
         }.items():
             aitem = MyStandardItem()
@@ -1366,7 +1367,8 @@ class WinForm(QWidget):
             self.config["linuxcnc"]["ini"] = {}
         ini_config = self.config["linuxcnc"]["ini"]
 
-        for section, section_data in riocore.generator.LinuxCNC.LinuxCNC.ini_defaults(self.config).items():
+        ini_data = riocore.generator.LinuxCNC.LinuxCNC.ini_defaults(self.config)
+        for section, section_data in ini_data.items():
             if section not in ini_config:
                 ini_config[section] = {}
             section_config = ini_config[section]
