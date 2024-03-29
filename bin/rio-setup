@@ -1981,7 +1981,15 @@ class WinForm(QWidget):
             if "display" not in signals_setup[signal_name]:
                 signals_setup[signal_name]["display"] = {}
 
-            for option, option_setup in {"title": {"type": str}, "section": {"type": str}, "type": {"type": "select", "options": type_options}}.items():
+            display_setup = {
+                "title": {"type": str},
+                "section": {"type": str},
+                "type": {"type": "select", "options": type_options},
+                "min": {"type": float, "default": None},
+                "max": {"type": float, "default": None},
+            }
+
+            for option, option_setup in display_setup.items():
                 help_text = f"{option} config"
                 citem = MyStandardItem()
                 display_view.appendRow(
@@ -2081,6 +2089,8 @@ class WinForm(QWidget):
                 self.treeview.expand(self.model.indexFromItem(joint_option_view))
 
     def tree_add_pins(self, parent, plugin_instance, expand=False, nopins=False):
+        if not plugin_instance.PINDEFAULTS:
+            return
         pins_view = MyStandardItem("Pins", help_text="pin-configuration for this plugin instance")
         parent.appendRow(pins_view)
         if expand:
