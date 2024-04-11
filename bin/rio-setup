@@ -1327,7 +1327,7 @@ class WinForm(QWidget):
             "boardcfg": {"type": "select", "options": self.boards},
             "protocol": {"type": "select", "options": self.interfaces, "default": "UDP"},
             "axis": {"type": int, "min": 0, "max": 9, "default": 3},
-            "machinetype": {"type": "select", "options": ["mill", "lathe", "corexy", "ldelta", "rdelta"]},
+            "machinetype": {"type": "select", "options": ["mill", "lathe", "corexy", "ldelta", "rdelta", "scara", "puma", "melfa"]},
             "toolchange": {"type": "select", "options": ["manual", "auto"], "default": "manual"},
             "gui": {"type": "select", "options": ["axis", "qtdragon", "tklinuxcnc", "touchy", "probe_basic"], "default": "axis"},
         }.items():
