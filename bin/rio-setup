@@ -1329,7 +1329,7 @@ class WinForm(QWidget):
             "boardcfg": {"type": "select", "options": self.boards},
             "protocol": {"type": "select", "options": self.interfaces, "default": "UDP"},
             "axis": {"type": int, "min": 0, "max": 9, "default": 3},
-            "machinetype": {"type": "select", "options": ["mill", "lathe", "corexy", "ldelta", "rdelta"]},
+            "machinetype": {"type": "select", "options": ["mill", "lathe", "corexy", "ldelta", "rdelta", "scara", "puma", "melfa"]},
             "toolchange": {"type": "select", "options": ["manual", "auto"], "default": "manual"},
             "gui": {"type": "select", "options": ["axis", "qtdragon", "tklinuxcnc", "touchy", "probe_basic"], "default": "axis"},
         }.items():
@@ -1475,10 +1475,23 @@ class WinForm(QWidget):
         )
         self.tree_plugins = self.model.item(self.model.rowCount() - 1)
 
+        buttons_layout = QHBoxLayout()
+        buttons_layout.setContentsMargins(0, 0, 0, 0)
+        buttons_widget = QWidget()
+        buttons_widget.setLayout(buttons_layout)
+
         button = QPushButton("add plugin")
         button.clicked.connect(self.add_plugin)
         button.setMaximumSize(button.sizeHint())
-        self.treeview.setIndexWidget(bitem.index(), button)
+        buttons_layout.addWidget(button)
+
+        # button_cfg = QPushButton("config")
+        # button_cfg.clicked.connect(self.plugin_config)
+        # button_cfg.setMaximumSize(button_cfg.sizeHint())
+        # buttons_layout.addWidget(button_cfg)
+
+        buttons_layout.addStretch()
+        self.treeview.setIndexWidget(bitem.index(), buttons_widget)
         self.treeview.expand(self.model.indexFromItem(self.tree_plugins))
 
         for plugin_instance in self.plugins.plugin_instances:
@@ -1675,6 +1688,25 @@ class WinForm(QWidget):
 
         dialog.layout.addWidget(dialog.buttonBox)
         dialog.setLayout(dialog.layout)
+
+        if dialog.exec():
+            return plugin_name.text()
+
+    def plugin_config(self, plugin_instance=None):
+        dialog = QDialog()
+        dialog.setWindowTitle("Plugin-Config")
+        dialog.setFixedWidth(800)
+        dialog.setFixedHeight(600)
+        dialog.setStyleSheet(STYLESHEET)
+
+        dialog.buttonBox = QDialogButtonBox(QDialogButtonBox.Ok)
+        dialog.buttonBox.accepted.connect(dialog.accept)
+
+        dialog.layout = QVBoxLayout()
+
+        hlayout = QHBoxLayout()
+
+        vlayout_left = QVBoxLayout()
 
         if dialog.exec():
             return plugin_name.text()
