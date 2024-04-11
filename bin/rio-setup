@@ -598,11 +598,13 @@ class WinForm(QWidget):
             self.board = json.loads(boardJsonStr)
 
         slot_pinmapping = {}
-        for slot in self.board.get("slots", []):
+        self.slots = self.board.get("slots", []) + self.config.get("slots", [])
+        for slot in self.slots:
             slot_name = slot["name"]
             for pin_id, pin in slot["pins"].items():
                 pin_name = f"{slot_name}:{pin_id}"
                 slot_pinmapping[pin] = pin_name
+
 
         # loading slot/module configs
         self.modules = {}
@@ -675,7 +677,7 @@ class WinForm(QWidget):
                 pin = pin_setup["pin"]
                 if pin not in self.pinlist:
                     self.pinlist.append(pin)
-        for slot in self.board.get("slots", []):
+        for slot in self.slots:
             slot_name = slot.get("name")
             slot_pins = slot.get("pins", {})
             for pin_name, pin in slot_pins.items():
@@ -728,11 +730,11 @@ class WinForm(QWidget):
         self.module_names = []
         for path in glob.glob(f"{modules_path}/*.json"):
             self.module_names.append(path.split("/")[-1].split(".")[0])
-        self.slots = []
-        for slot in self.board.get("slots", []):
+        self.slotnames = []
+        for slot in self.slots:
             slot_name = slot.get("name")
             if slot_name:
-                self.slots.append(slot_name)
+                self.slotnames.append(slot_name)
 
         self.load_tree()
         self.pin_table_load()
@@ -804,7 +806,7 @@ class WinForm(QWidget):
         sports = []
 
         # show slots
-        for slot in self.board.get("slots", []):
+        for slot in self.slots:
             slot_name = slot.get("name")
             slot_pins = slot.get("pins", {})
             mportsl = []
@@ -1535,7 +1537,7 @@ class WinForm(QWidget):
             module_defaults = json.loads(moduleJsonStr)
 
             slot_setup = {}
-            for slot in self.board.get("slots", []):
+            for slot in self.slots:
                 if slot_name == slot["name"]:
                     slot_setup = slot
             slot_pins = slot_setup.get("pins", {})
@@ -1694,7 +1696,7 @@ class WinForm(QWidget):
         dialog.layout.addWidget(message)
         combo_module = QComboBox(self)
 
-        for slot in self.board.get("slots", []):
+        for slot in self.slots:
             slot_name = slot["name"]
             if slot_name not in self.modules:
                 combo_slot.addItem(slot_name)
