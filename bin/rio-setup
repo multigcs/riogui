@@ -1309,6 +1309,7 @@ class WinForm(QWidget):
             var_setup = {}
         # if key not in obj and "default" in var_setup:
         #    obj[key] = var_setup["default"]
+
         if var_setup["type"] == "select":
             return edit_combobox(self, obj, key, var_setup.get("options", []), cb=cb, default=var_setup.get("default"))
         elif var_setup["type"] == int:
@@ -1447,7 +1448,7 @@ class WinForm(QWidget):
 
             for key, var_setup in {
                 "module": {"type": "select", "options": self.module_names},
-                "slot": {"type": "select", "options": self.slots},
+                "slot": {"type": "select", "options": self.slotnames},
             }.items():
                 aitem = MyStandardItem()
                 module_view.appendRow(
