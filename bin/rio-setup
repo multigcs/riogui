@@ -265,10 +265,7 @@ class WinForm(QWidget):
 
         self.imagew = MyQSvgWidget()
 
-        scroll = QScrollArea()
-        scroll.setWidget(self.imagew)
-        scroll.setWidgetResizable(True)
-        self.tabwidget.addTab(scroll, "Flow")
+        self.tabwidget.addTab(self.imagew, "Flow")
         self.tabwidget.addTab(self.pin_table, "Pins")
         self.tabwidget.addTab(self.sig_table, "Signals")
 
@@ -287,6 +284,8 @@ class WinForm(QWidget):
         self.firmware_tabwidget = QTabWidget()
         self.tabwidget.addTab(self.firmware_tabwidget, "Firmware")
 
+        self.hal_imagew = MyQSvgWidget()
+
         self.gateware = {
             "rio.v": QPlainTextEdit(),
             "Makefile": QPlainTextEdit(),
@@ -303,6 +302,7 @@ class WinForm(QWidget):
             "custom_postgui.hal": QPlainTextEdit(),
             "rio-gui.xml": QPlainTextEdit(),
             "rio.c": QPlainTextEdit(),
+            "rio-hal.svg": self.hal_imagew,
         }
 
         for filename, widget in self.gateware.items():
@@ -314,8 +314,9 @@ class WinForm(QWidget):
             widget.insertPlainText("")
             self.firmware_tabwidget.addTab(widget, filename)
         for filename, widget in self.linuxcnc.items():
-            widget.clear()
-            widget.insertPlainText("")
+            if filename != "rio-hal.svg":
+                widget.clear()
+                widget.insertPlainText("")
             self.linuxcnc_tabwidget.addTab(widget, filename)
 
         container = QWidget()
@@ -399,6 +400,7 @@ class WinForm(QWidget):
         self.config_checked = {}
 
         self.request_load_tree = 0
+        self.request_load_hal = 0
         self.request_pin_table_load = 0
         self.request_sig_table_load = 0
         self.timer = QTimer()
@@ -479,6 +481,12 @@ class WinForm(QWidget):
             self.load_tree()
             self.request_load_tree = 0
 
+        if self.request_load_hal > 1:
+            self.request_load_hal -= 1
+        elif self.request_load_hal == 1:
+            self.load_hal()
+            self.request_load_hal = 0
+
         if self.request_pin_table_load > 1:
             self.request_pin_table_load -= 1
         elif self.request_pin_table_load == 1:
@@ -503,11 +511,13 @@ class WinForm(QWidget):
 
             if self.compile_sub.poll() is not None:
                 widget.insertPlainText(logdata)
+                widget.verticalScrollBar().setValue(widget.verticalScrollBar().maximum())
                 self.compile_sub = None
                 self.check_status()
                 self.info_widget.setText(f"compile...done in {duration:0.1f}s")
             else:
                 widget.insertPlainText(logdata)
+                widget.verticalScrollBar().setValue(widget.verticalScrollBar().maximum())
                 self.button_save.setEnabled(False)
                 self.button_save_as.setEnabled(False)
                 self.button_generate.setEnabled(False)
@@ -524,11 +534,13 @@ class WinForm(QWidget):
 
             if self.flash_sub.poll() is not None:
                 widget.insertPlainText(logdata)
+                widget.verticalScrollBar().setValue(widget.verticalScrollBar().maximum())
                 self.flash_sub = None
                 self.check_status()
                 self.info_widget.setText(f"flash...done in {duration:0.1f}s")
             else:
                 widget.insertPlainText(logdata)
+                widget.verticalScrollBar().setValue(widget.verticalScrollBar().maximum())
                 self.button_save.setEnabled(False)
                 self.button_save_as.setEnabled(False)
                 self.button_generate.setEnabled(False)
@@ -1055,9 +1067,7 @@ class WinForm(QWidget):
         )
 
         self.imagew.load(gAll.pipe().decode().encode())
-
-        # self.imagew.setFixedSize(QSize(800, 600))
-        # self.imagew.setFixedSize(self.imagew.renderer().defaultSize())
+        self.imagew.setFixedSize(self.imagew.renderer().defaultSize())
 
     def sig_edit_cb(self, widget):
         self.generate_cb(preview=True)
@@ -1319,6 +1329,9 @@ class WinForm(QWidget):
         elif var_setup["type"] == bool:
             return edit_bool(self, obj, key, cb=cb, default=var_setup.get("default"))
         return edit_text(self, obj, key, cb=cb, default=var_setup.get("default"))
+
+    def load_hal(self):
+        print("loding hal overview")
 
     def load_tree(self):
         while self.model.rowCount() > 0:
@@ -1803,9 +1816,16 @@ class WinForm(QWidget):
                             self.firmware_hash = hash_md5.hexdigest()
 
             for filename, widget in self.linuxcnc.items():
-                file_content = open(f"{output_path}/{config_name}/LinuxCNC/{filename}", "r").read()
-                widget.clear()
-                widget.insertPlainText(file_content)
+                if filename == "rio-hal.svg":
+                    if os.path.exists(f"{output_path}/{config_name}/LinuxCNC/rio.ini"):
+                        os.system(f"python3 {riocore_path}/files/hal2graphviz.py -q -o {output_path}/{config_name}/LinuxCNC/{filename} {output_path}/{config_name}/LinuxCNC/rio.ini")
+                    if os.path.exists(f"{output_path}/{config_name}/LinuxCNC/{filename}"):
+                        self.hal_imagew.load(f"{output_path}/{config_name}/LinuxCNC/{filename}")
+                        self.hal_imagew.setFixedSize(self.hal_imagew.renderer().defaultSize())
+                else:
+                    file_content = open(f"{output_path}/{config_name}/LinuxCNC/{filename}", "r").read()
+                    widget.clear()
+                    widget.insertPlainText(file_content)
         except Exception as error:
             print(f"ERROR loading output: {error}")
         if preview:
