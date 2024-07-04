@@ -1196,8 +1196,8 @@ class WinForm(QWidget):
                 self.sig_table.setItem(row_n, col_n, pitem)
             self.sig_table.setCellWidget(row_n, 2, row[7])
 
-        for col_n, col in enumerate(row[:5]):
-            self.sig_table.resizeColumnToContents(col_n)
+        #for col_n, col in enumerate(row[:5]):
+        #    self.sig_table.resizeColumnToContents(col_n)
 
     def pin_edit_cb(self, widget):
         self.generate_cb(preview=True)
