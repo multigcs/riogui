@@ -2182,6 +2182,41 @@ class WinForm(QWidget):
                     ]
                 )
                 self.treeview.setIndexWidget(pitem.index(), self.edit_item(pin_setup, "pullup", {"type": bool}))
+                pitem = MyStandardItem()
+                pin_view.appendRow(
+                    [
+                        MyStandardItem("Pulldown", help_text="activate pulldown resistor for this pin"),
+                        pitem,
+                    ]
+                )
+                self.treeview.setIndexWidget(pitem.index(), self.edit_item(pin_setup, "pulldown", {"type": bool}))
+            else:
+                pitem = MyStandardItem()
+                pin_view.appendRow(
+                    [
+                        MyStandardItem("slew", help_text="set slew for this pin"),
+                        pitem,
+                    ]
+                )
+                self.treeview.setIndexWidget(pitem.index(), self.edit_item(pin_setup, "slew", {"type": "select", "options": ["SLOW", "FAST"], "default": "SLOW"}))
+
+                pitem = MyStandardItem()
+                pin_view.appendRow(
+                    [
+                        MyStandardItem("drive", help_text="set drive strength for this pin (not all values works on all FPGA's)"),
+                        pitem,
+                    ]
+                )
+                self.treeview.setIndexWidget(pitem.index(), self.edit_item(pin_setup, "drive", {"type": "select", "options": ["2", "4", "8", "12", "16", "24"], "default": "4"}))
+                pitem = MyStandardItem()
+                pin_view.appendRow(
+                    [
+                        MyStandardItem("iostandard", help_text="set iostandard for this pin (not all values works on all FPGA's)"),
+                        pitem,
+                    ]
+                )
+                self.treeview.setIndexWidget(pitem.index(), self.edit_item(pin_setup, "iostandard", {"type": "select", "options": ["LVTTL", "LVCMOS33", "LVCMOS25", "LVCMOS18", "LVCMOS15", "LVCMOS12"], "default": "LVTTL"}))
+
 
             bitem = MyStandardItem()
             pin_view.appendRow(
