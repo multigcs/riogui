@@ -22,8 +22,9 @@ from riocore.widgets import MyQSvgWidget, MyStandardItem, edit_float, edit_int, 
 
 
 from PyQt5.QtCore import QTimer
-from PyQt5.QtGui import QStandardItemModel
+from PyQt5.QtGui import QStandardItemModel, QFont, QPixmap
 from PyQt5.QtWidgets import (
+    QGroupBox,
     QApplication,
     QCheckBox,
     QComboBox,
@@ -617,7 +618,6 @@ class WinForm(QWidget):
                 pin_name = f"{slot_name}:{pin_id}"
                 slot_pinmapping[pin] = pin_name
 
-
         # loading slot/module configs
         self.modules = {}
         for module in self.config.get("modules", []):
@@ -1196,7 +1196,7 @@ class WinForm(QWidget):
                 self.sig_table.setItem(row_n, col_n, pitem)
             self.sig_table.setCellWidget(row_n, 2, row[7])
 
-        #for col_n, col in enumerate(row[:5]):
+        # for col_n, col in enumerate(row[:5]):
         #    self.sig_table.resizeColumnToContents(col_n)
 
     def pin_edit_cb(self, widget):
@@ -1621,6 +1621,304 @@ class WinForm(QWidget):
         self.config_load()
         self.display()
 
+    def edit_plugin(self, plugin_instance, plugin_id, widget):
+        plugin_config = self.config["plugins"][plugin_id]
+
+        #print(self.config["plugins"][plugin_id])
+
+        def update(arg):
+            print("#update", arg, plugin_config)
+
+        dialog = QDialog()
+        dialog.setWindowTitle(f"edit Plugin {plugin_instance.NAME}")
+        # dialog.setFixedWidth(1200)
+        # dialog.setFixedHeight(600)
+        dialog.setStyleSheet(STYLESHEET)
+        dialog.buttonBox = QDialogButtonBox(QDialogButtonBox.Ok)
+        dialog.buttonBox.accepted.connect(dialog.accept)
+        dialog.layout = QHBoxLayout()
+
+        tabwidget = QTabWidget()
+
+        options = QVBoxLayout()
+
+        myFont = QFont()
+        myFont.setBold(True)
+
+        infotext = plugin_instance.INFO
+        label = QLabel(f"{infotext}\n")
+        label.setFont(myFont)
+        options.addWidget(label)
+        descriptiontext = plugin_instance.DESCRIPTION
+        label = QLabel(f"{descriptiontext}\n")
+        # label.setFont(myFont)
+        options.addWidget(label)
+
+        for option_name, option_defaults in plugin_instance.OPTIONS.items():
+            title = option_name.title()
+            unit = option_defaults.get("unit")
+            if unit:
+                title = f"{title} ({unit})"
+            help_text = option_defaults.get("description", title)
+            option_row = QHBoxLayout()
+            option_label = QLabel(title)
+            option_label.setToolTip(help_text)
+            option_row.addWidget(option_label, stretch=1)
+            option_widget = self.edit_item(plugin_instance.plugin_setup, option_name, option_defaults, cb=update)
+            option_row.addWidget(option_widget, stretch=3)
+            options.addLayout(option_row)
+
+        if plugin_instance.PLUGIN_CONFIG:
+            button_config = QPushButton("config")
+            cb = partial(self.config_plugin, plugin_instance, plugin_instance.plugin_id)
+            button_config.clicked.connect(cb)
+            button_config.setMaximumSize(button_config.sizeHint())
+            options.addWidget(button_config)
+
+        options_tab = QWidget()
+        options.addStretch()
+        options_tab.setLayout(options)
+        tabwidget.addTab(options_tab, "Plugin")
+
+        ## Pins
+
+        pins = QVBoxLayout()
+        label = QLabel("Pin-Setup")
+        label.setFont(myFont)
+        pins.addWidget(label)
+
+        for pin_name, pin_defaults in plugin_instance.PINDEFAULTS.items():
+            pin_config = plugin_config.get("pins", {}).get(pin_name, {})
+            pin_title = pin_name
+            direction = pin_defaults["direction"]
+            optional = pin_defaults.get("optional", False)
+            help_text = f"location for {direction} pin: {pin_name}"
+            if optional:
+                help_text = f"{help_text} (optional)"
+
+            if optional:
+                pin_title = f"{pin_title} (optional)"
+
+            frame = QGroupBox(self)
+            frame.setTitle(pin_title)
+            frame.setToolTip(help_text)
+
+            pin_rows = QVBoxLayout()
+
+            pin_cols = QHBoxLayout()
+            pin_cols.addWidget(QLabel("Pin:"), stretch=2)
+            pin_cols.addWidget(self.edit_item(pin_config, "pin", {"type": "select", "options": self.pinlist, "default": ""}, cb=update), stretch=6)
+            pin_cols.addWidget(QLabel("Pull:"), stretch=1)
+            pin_cols.addWidget(self.edit_item(pin_config, "pull", {"type": "select", "options": [None, "up", "down"], "default": None}, cb=update), stretch=3)
+            pin_rows.addLayout(pin_cols)
+
+            pin_cols = QHBoxLayout()
+            pin_cols.addWidget(QLabel("Slew:"), stretch=1)
+            pin_cols.addWidget(self.edit_item(pin_config, "slew", {"type": "select", "options": ["SLOW", "FAST"], "default": "SLOW"}, cb=update), stretch=3)
+            pin_cols.addWidget(QLabel("Drive:"), stretch=1)
+            pin_cols.addWidget(self.edit_item(pin_config, "drive", {"type": "select", "options": ["2", "4", "8", "12", "16", "24"], "default": "4"}, cb=update), stretch=3)
+            pin_cols.addWidget(QLabel("IO-Standart:"), stretch=1)
+            pin_cols.addWidget(
+                self.edit_item(pin_config, "iostandard", {"type": "select", "options": ["LVTTL", "LVCMOS33", "LVCMOS25", "LVCMOS18", "LVCMOS15", "LVCMOS12"], "default": "LVTTL"}, cb=update), stretch=3
+            )
+            pin_rows.addLayout(pin_cols)
+
+            frame.setLayout(pin_rows)
+            pins.addWidget(frame)
+
+        pins_tab = QWidget()
+        pins.addStretch()
+        pins_tab.setLayout(pins)
+        tabwidget.addTab(pins_tab, "Pins")
+
+        if plugin_instance.TYPE == "joint" and plugin_instance.plugin_setup.get("is_joint", False):
+            if "joint" not in plugin_instance.plugin_setup:
+                plugin_instance.plugin_setup["joint"] = {}
+            joints_setup = plugin_instance.plugin_setup["joint"]
+
+            joint_options = {
+                "scale": {
+                    "type": float,
+                },
+                "type": {
+                    "type": "select",
+                    "options": ["LINEAR", "ROTARY"],
+                },
+                "home": {
+                    "type": float,
+                },
+                "home_sequence": {
+                    "type": int,
+                },
+                "min_limit": {
+                    "type": float,
+                },
+                "max_limit": {
+                    "type": float,
+                },
+                "max_velocity": {
+                    "type": float,
+                },
+                "max_acceleration": {
+                    "type": float,
+                },
+                "stepgen_maxaccel": {
+                    "type": float,
+                },
+                "home_search_vel": {
+                    "type": float,
+                },
+                "home_latch_vel": {
+                    "type": float,
+                },
+                "home_final_vel": {
+                    "type": float,
+                },
+                "home_offset": {
+                    "type": float,
+                },
+                "home_ignore_limits": {
+                    "type": "select",
+                    "options": ["YES", "NO"],
+                },
+                "home_use_index": {
+                    "type": "select",
+                    "options": ["YES", "NO"],
+                },
+            }
+
+            joint = QVBoxLayout()
+            label = QLabel("Joint-Setup for LinuxCNC")
+            label.setFont(myFont)
+            joint.addWidget(label)
+
+            for key, value in riocore.generator.LinuxCNC.LinuxCNC.JOINT_DEFAULTS.items():
+                key = key.lower()
+                if key == "scale_out":
+                    key = "scale"
+                if key in joint_options:
+                    joint_options[key.lower()]["default"] = value
+
+            for option, option_setup in joint_options.items():
+                help_text = f"{option} config"
+                option_row = QHBoxLayout()
+                option_label = QLabel(option)
+                option_label.setToolTip(help_text)
+                option_row.addWidget(option_label, stretch=1)
+                option_widget = self.edit_item(joints_setup, option, option_setup, cb=update)
+                option_row.addWidget(option_widget, stretch=3)
+                joint.addLayout(option_row)
+
+            joint_tab = QWidget()
+            joint.addStretch()
+            joint_tab.setLayout(joint)
+            tabwidget.addTab(joint_tab, "Joint")
+
+        else:
+            signal_table = QTableWidget()
+            signal_table.setColumnCount(10)
+            signal_table.setHorizontalHeaderItem(0, QTableWidgetItem("Name"))
+            signal_table.setHorizontalHeaderItem(1, QTableWidgetItem("Type"))
+            signal_table.setHorizontalHeaderItem(2, QTableWidgetItem("Direction"))
+            signal_table.setHorizontalHeaderItem(3, QTableWidgetItem("Multiplexed"))
+            signal_table.setHorizontalHeaderItem(4, QTableWidgetItem("Net"))
+            signal_table.setHorizontalHeaderItem(5, QTableWidgetItem("Function"))
+            signal_table.setHorizontalHeaderItem(6, QTableWidgetItem("Scale"))
+            signal_table.setHorizontalHeaderItem(7, QTableWidgetItem("Offset"))
+            signal_table.setHorizontalHeaderItem(8, QTableWidgetItem("Setp"))
+            signal_table.setHorizontalHeaderItem(9, QTableWidgetItem("Display"))
+
+            if "signals" not in plugin_config:
+                plugin_config["signals"] = {}
+            signals_setup = plugin_config["signals"]
+
+            row_n = 0
+            for signal_name, signal_defaults in plugin_instance.SIGNALS.items():
+                signal_table.setRowCount(row_n + 1)
+                if signal_name not in signals_setup:
+                    signals_setup[signal_name] = {}
+                help_text = f"{signal_name} config"
+
+                signal_setup = signal_defaults.get("setup", {})
+                signal_direction = signal_defaults["direction"]
+                signal_multiplexed = signal_defaults.get("multiplexed", False)
+                is_bool = signal_defaults.get("bool", False)
+
+                options_net = []
+                for halpin, halpin_info in halpins.LINUXCNC_SIGNALS[signal_direction].items():
+                    if is_bool:
+                        if halpin_info.get("type") == bool:
+                            options_net.append(halpin)
+                    elif halpin_info.get("type") != bool:
+                        options_net.append(halpin)
+
+                options_func = []
+                for halpin, halpin_info in halpins.RIO_FUNCTIONS[signal_direction].items():
+                    if is_bool:
+                        if halpin_info.get("type") == bool:
+                            options_func.append(halpin)
+                    elif halpin_info.get("type") != bool:
+                        options_func.append(halpin)
+
+                signal_table.setItem(row_n, 0, QTableWidgetItem(signal_name))
+                if is_bool:
+                    signal_table.setItem(row_n, 1, QTableWidgetItem("BOOL"))
+                else:
+                    signal_table.setItem(row_n, 1, QTableWidgetItem("FLOAT"))
+                signal_table.setItem(row_n, 2, QTableWidgetItem(signal_direction))
+                if signal_multiplexed:
+                    signal_table.setItem(row_n, 3, QTableWidgetItem("YES"))
+                else:
+                    signal_table.setItem(row_n, 3, QTableWidgetItem("NO"))
+
+                signal_net = signals_setup[signal_name].get("net", "")
+                signal_table.setItem(row_n, 4, QTableWidgetItem())
+
+                signal_function = signals_setup[signal_name].get("function", "")
+                signal_table.setItem(row_n, 5, QTableWidgetItem())
+
+                signal_scale = signals_setup[signal_name].get("scale", "")
+                signal_table.setItem(row_n, 6, QTableWidgetItem())
+
+                signal_offset = signals_setup[signal_name].get("offset", "")
+                signal_table.setItem(row_n, 7, QTableWidgetItem())
+
+                signal_setup["net"] = {"type": "select", "options": options_net}
+                signal_table.setCellWidget(row_n, 4, self.edit_item(signals_setup[signal_name], "net", signal_setup["net"], cb=update))
+
+                signal_setup["function"] = {"type": "select", "options": options_func}
+                signal_table.setCellWidget(row_n, 5, self.edit_item(signals_setup[signal_name], "function", signal_setup["function"], cb=update))
+
+                if "source" not in signal_defaults and not signal_defaults.get("bool"):
+                    signal_setup["scale"] = {"type": float, "default": 1.0}
+                    signal_table.setCellWidget(row_n, 6, self.edit_item(signals_setup[signal_name], "scale", signal_setup["scale"], cb=update))
+                    signal_setup["offset"] = {"type": float, "default": 0.0}
+                    signal_table.setCellWidget(row_n, 7, self.edit_item(signals_setup[signal_name], "offset", signal_setup["offset"], cb=update))
+
+                if signal_direction == "output":
+                    signal_setup["setp"] = {"type": str, "default": ""}
+                    signal_table.setCellWidget(row_n, 8, self.edit_item(signals_setup[signal_name], "setp", signal_setup["setp"], cb=update))
+
+                row_n += 1
+            tabwidget.addTab(signal_table, "Signals")
+
+        blayout = QVBoxLayout()
+        dialog.layout.addLayout(blayout)
+
+        plugin_path = f"{riocore_path}/plugins/{plugin_instance.NAME}"
+        image_path = f"{plugin_path}/image.png"
+        if os.path.isfile(image_path):
+            ilabel = QLabel(self)
+            pixmap = QPixmap(image_path)
+            ilabel.setPixmap(pixmap)
+            self.resize(pixmap.width(), pixmap.height())
+            dialog.layout.addWidget(ilabel, stretch=1)
+        blayout.addWidget(tabwidget)
+        blayout.addWidget(dialog.buttonBox)
+        dialog.setLayout(dialog.layout)
+        if dialog.exec():
+            return
+
     def config_plugin(self, plugin_instance, plugin_id, widget):
         if os.path.isfile(f"{riocore_path}/plugins/{plugin_instance.NAME}/config.py"):
             plugin_config = importlib.import_module(".config", f"riocore.plugins.{plugin_instance.NAME}")
@@ -1894,6 +2192,13 @@ class WinForm(QWidget):
         button_delete.clicked.connect(cb)
         button_delete.setMaximumSize(button_delete.sizeHint())
         buttons_layout.addWidget(button_delete)
+
+        button_edit = QPushButton("edit")
+        cb = partial(self.edit_plugin, plugin_instance, plugin_instance.plugin_id)
+        button_edit.clicked.connect(cb)
+        button_edit.setMaximumSize(button_edit.sizeHint())
+        buttons_layout.addWidget(button_edit)
+
         if plugin_instance.PLUGIN_CONFIG:
             button_config = QPushButton("config")
             cb = partial(self.config_plugin, plugin_instance, plugin_instance.plugin_id)
@@ -2154,7 +2459,7 @@ class WinForm(QWidget):
             pin_setup = plugin_instance.plugin_setup.get("pins", {}).get(pin_name, {})
             direction = pin_defaults["direction"]
             optional = pin_defaults.get("optional")
-            help_text = f"pin location for {direction} pin: {pin_name}"
+            help_text = f"location for {direction} pin: {pin_name}"
             if optional:
                 help_text = f"{help_text} (optional)"
 
@@ -2177,19 +2482,11 @@ class WinForm(QWidget):
                 pitem = MyStandardItem()
                 pin_view.appendRow(
                     [
-                        MyStandardItem("Pullup", help_text="activate pullup resistor for this pin"),
+                        MyStandardItem("Pull", help_text="activate pullup/pulldown resistor for this pin"),
                         pitem,
                     ]
                 )
-                self.treeview.setIndexWidget(pitem.index(), self.edit_item(pin_setup, "pullup", {"type": bool}))
-                pitem = MyStandardItem()
-                pin_view.appendRow(
-                    [
-                        MyStandardItem("Pulldown", help_text="activate pulldown resistor for this pin"),
-                        pitem,
-                    ]
-                )
-                self.treeview.setIndexWidget(pitem.index(), self.edit_item(pin_setup, "pulldown", {"type": bool}))
+                self.treeview.setIndexWidget(pitem.index(), self.edit_item(pin_setup, "pull", {"type": "select", "options": [None, "up", "down"], "default": None}))
             else:
                 pitem = MyStandardItem()
                 pin_view.appendRow(
@@ -2215,8 +2512,9 @@ class WinForm(QWidget):
                         pitem,
                     ]
                 )
-                self.treeview.setIndexWidget(pitem.index(), self.edit_item(pin_setup, "iostandard", {"type": "select", "options": ["LVTTL", "LVCMOS33", "LVCMOS25", "LVCMOS18", "LVCMOS15", "LVCMOS12"], "default": "LVTTL"}))
-
+                self.treeview.setIndexWidget(
+                    pitem.index(), self.edit_item(pin_setup, "iostandard", {"type": "select", "options": ["LVTTL", "LVCMOS33", "LVCMOS25", "LVCMOS18", "LVCMOS15", "LVCMOS12"], "default": "LVTTL"})
+                )
 
             bitem = MyStandardItem()
             pin_view.appendRow(

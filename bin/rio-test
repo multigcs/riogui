@@ -12,7 +12,11 @@ from functools import partial
 
 import riocore
 from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtGui import QPixmap
 from PyQt5.QtWidgets import (
+    QLineEdit,
+    QVBoxLayout,
+    QHBoxLayout,
     QApplication,
     QCheckBox,
     QComboBox,
@@ -21,7 +25,6 @@ from PyQt5.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
     QLabel,
-    QLineEdit,
     QListWidget,
     QPushButton,
     QSlider,
@@ -48,6 +51,7 @@ parser.add_argument("--graphs", "-g", help="show graphs", default=False, action=
 parser.add_argument("--buffer", "-b", help="buffer size for graphs", type=int, default=100)
 parser.add_argument("config", help="config", nargs="?", type=str, default=None)
 parser.add_argument("target", help="target", nargs="?", type=str, default="")
+parser.add_argument("tab", help="tab", nargs="?", type=str, default="")
 args = parser.parse_args()
 
 
@@ -111,31 +115,57 @@ class WinForm(QWidget):
         for tab_num, plugin_type in enumerate(sorted(plugin_types)):
             tab_widget = QWidget()
             self.tabwidget.addTab(tab_widget, plugin_type.title())
-            tab_layout = QGridLayout()
-            tab_widget.setLayout(tab_layout)
 
-            row = 0
+            #tab_layout = QGridLayout()
+            tab_layout1 = QHBoxLayout()
+            tab_widget.setLayout(tab_layout1)
+
+            tab_layout = QVBoxLayout()
+            tab_layout1.addLayout(tab_layout, stretch=3)
+
+            plugin_path = f"{riocore_path}/plugins/{plugin_type}"
+            image_path = f"{plugin_path}/image.png"
+            if os.path.isfile(image_path):
+                ilabel = QLabel(self)
+                pixmap = QPixmap(image_path)
+                ilabel.setPixmap(pixmap)
+                self.resize(pixmap.width(), pixmap.height())
+                tab_layout1.addWidget(ilabel, stretch=1)
+
+
             for plugin_instance, haldata in self.haldata.items():
                 if plugin_instance.NAME != plugin_type:
                     continue
 
-                row += 1
-                tab_layout.addWidget(QLabel(f"{plugin_instance.title} ({plugin_instance.NAME})"), row, 0)
+                num_signals = len(plugin_instance.SIGNALS)
+                if num_signals > 1:
+                    row_layout = QHBoxLayout()
+                    tab_layout.addLayout(row_layout)
+                    row_layout.addWidget(QLabel(f"{plugin_instance.title} ({plugin_instance.NAME})"))
+
                 for hdir in ("output", "input", "inout"):
                     for halname, signal in haldata.get(hdir, {}).items():
                         value = signal["value"]
                         value_format = signal.get("format", "d")
                         value_unit = signal.get("unit", "")
+                        userconfig = signal.get("userconfig", {})
+
                         value_str = f"%{value_format}" % (value,)
                         halname_np = halname.split(".", 1)[-1]
-                        tab_layout.addWidget(QLabel(f"    {halname_np}"), row, 1)
+                        halname_np = userconfig.get("display", {}).get("title", halname_np)
+
+
+                        row_layout = QHBoxLayout()
+                        tab_layout.addLayout(row_layout)
+                        if num_signals == 1:
+                            row_layout.addWidget(QLabel(f"{plugin_instance.title} ({plugin_instance.NAME})"), stretch=2)
+                        row_layout.addWidget(QLabel(f"    {halname_np}"), stretch=2)
                         wid = f"widget_{plugin_instance.title}"
                         gid = f"graph_{plugin_instance.title}"
                         if signal.get("bool"):
                             signal[wid] = QCheckBox()
                             signal[wid].setChecked(value)
                             signal[wid].setStyleSheet(STYLESHEET_CHECKBOX)
-
                             if args.graphs and signal.get("direction") == "input":
                                 signal[f"graph_tab_{plugin_instance.title}"] = tab_num
                                 signal[f"graph_minmax_{plugin_instance.title}"] = (0, 1)
@@ -151,11 +181,11 @@ class WinForm(QWidget):
                                     name="Value",
                                     pen=pen,
                                 )
-                                tab_layout.addWidget(plot_graph, row, 3)
+                                row_layout.addWidget(plot_graph)
+                            row_layout.addWidget(signal[wid], stretch=6)
 
                         elif signal.get("direction") == "input":
                             signal[wid] = QLabel("")
-                            signal[wid].setText(f"{value_str} {value_unit}")
                             if args.graphs:
                                 signal[f"graph_tab_{plugin_instance.title}"] = tab_num
                                 signal[f"graph_minmax_{plugin_instance.title}"] = (0, 1)
@@ -171,11 +201,11 @@ class WinForm(QWidget):
                                     name="Value",
                                     pen=pen,
                                 )
-                                tab_layout.addWidget(plot_graph, row, 3)
+                                row_layout.addWidget(plot_graph)
+                            row_layout.addWidget(signal[wid], stretch=6)
                         else:
                             vmin = signal.get("userconfig", {}).get("min", signal.get("min", 0))
                             vmax = signal.get("userconfig", {}).get("max", signal.get("max", 100000))
-                            print(vmax)
                             signal[wid] = QSlider(Qt.Horizontal)
                             signal[wid].setMinimum(int(vmin))
                             signal[wid].setMaximum(int(vmax))
@@ -183,18 +213,64 @@ class WinForm(QWidget):
                             signal[wid].setPageStep(int((vmax - vmin) // 1000))
                             # signal[wid].setTickPosition(QSlider.TicksBelow)
                             signal[wid].setValue(value)
+                            signal[f"widget_out_{plugin_instance.title}"] = QLabel("      ")
+                            row_layout.addWidget(signal[f"widget_out_{plugin_instance.title}"])
                             button = QPushButton("0")
                             button.clicked.connect(partial(self.slider_reset, signal[wid]))
-                            tab_layout.addWidget(button, row, 3)
-                            signal[f"widget_out_{plugin_instance.title}"] = QLabel("      ")
-                            tab_layout.addWidget(signal[f"widget_out_{plugin_instance.title}"], row, 4)
+                            row_layout.addWidget(signal[wid], stretch=6)
+                            row_layout.addWidget(button, stretch=1)
 
-                        tab_layout.addWidget(signal[wid], row, 2)
-                        row += 1
+
+                if plugin_instance.TYPE == "frameio" == "frameio":
+                    row_layout = QHBoxLayout()
+                    tab_layout.addLayout(row_layout)
+                    row_layout.addWidget(QLabel("      >SEND"), stretch=2)
+                    plugin_instance.frame_tx_overwride_widget = QLineEdit()
+                    row_layout.addWidget(plugin_instance.frame_tx_overwride_widget, stretch=5)
+                    button_set = QPushButton("SET")
+                    row_layout.addWidget(button_set, stretch=1)
+                    button_clear = QPushButton("CLEAR")
+                    row_layout.addWidget(button_clear, stretch=1)
+
+                    row_layout = QHBoxLayout()
+                    tab_layout.addLayout(row_layout)
+                    row_layout.addWidget(QLabel("      >TX"), stretch=1)
+                    plugin_instance.frame_tx_id_widget = QLabel("LEN")
+                    row_layout.addWidget(plugin_instance.frame_tx_id_widget, stretch=1)
+                    plugin_instance.frame_tx_widget = QLineEdit("TX")
+                    row_layout.addWidget(plugin_instance.frame_tx_widget, stretch=6)
+
+                    button_set.clicked.connect(partial(self.framecopy, plugin_instance))
+                    button_clear.clicked.connect(partial(self.frameclear, plugin_instance))
+
+                    row_layout = QHBoxLayout()
+                    tab_layout.addLayout(row_layout)
+                    row_layout.addWidget(QLabel("      <RX"), stretch=1)
+                    plugin_instance.frame_rx_id_widget = QLabel("LEN")
+                    row_layout.addWidget(plugin_instance.frame_rx_id_widget, stretch=1)
+                    plugin_instance.frame_rx_widget = QLineEdit("RX")
+                    row_layout.addWidget(plugin_instance.frame_rx_widget, stretch=6)
+
+                    if hasattr(plugin_instance, "testgui_frameio_init"):
+                        plugin_instance.testgui_frameio_init(tab_layout)
+
+            tab_layout.addStretch()
+
+            if args.tab and args.tab.lower() == plugin_type.lower():
+                self.tabwidget.setCurrentWidget(tab_widget)
 
         self.timer = QTimer()
         self.timer.timeout.connect(self.runTimer)
         self.timer.start(args.interval)
+
+    def framecopy(self, plugin_instance, c):
+        frame = plugin_instance.frame_tx_widget.text()
+        if hasattr(plugin_instance, "testgui_frameio_clean"):
+            frame = " ".join(plugin_instance.testgui_frameio_clean(frame.replace(",", " ").split()))
+        plugin_instance.frame_tx_overwride_widget.setText(frame)
+
+    def frameclear(self, plugin_instance, c):
+        plugin_instance.frame_tx_overwride_widget.setText("")
 
     def target_select(self):
         def target_check(item):
@@ -310,6 +386,18 @@ class WinForm(QWidget):
                         signal[f"widget_out_{plugin_instance.title}"].setText(f"{value:05d}")
                         self.project.signal_value_set(halname, value)
 
+                if hasattr(plugin_instance, "frame_tx_overwride_widget"):
+                    overwrite = plugin_instance.frame_tx_overwride_widget.text()
+                    if overwrite:
+                        plugin_instance.frame_tx_overwride = []
+                        parts = overwrite.replace(",", " ").split()
+                        for inum in parts:
+                            plugin_instance.frame_tx_overwride.append(int(inum))
+                        if hasattr(plugin_instance, "testgui_frameio_send"):
+                            plugin_instance.frame_tx_overwride = plugin_instance.testgui_frameio_send(plugin_instance.frame_tx_overwride)
+                    else:
+                        plugin_instance.frame_tx_overwride = None
+
             txdata = self.project.txdata_get()
             if args.debug:
                 print(f"tx ({len(txdata*8)}): {txdata}")
@@ -336,13 +424,50 @@ class WinForm(QWidget):
                 self.time.append(self.time[-1] + 1)
 
             for plugin_instance, haldata in self.haldata.items():
+                if plugin_instance.TYPE == "frameio" == "frameio":
+                    txframe_raw = plugin_instance.INTERFACE["txdata"]["value"]
+                    txframe = []
+                    if args.debug:
+                        print(f"{plugin_instance.title}: frame_tx: {plugin_instance.frame_tx}")
+
+                    for p in txframe_raw:
+                        txframe.append(str(int(p)))
+                    frame_tx_id = int(txframe[0])
+                    frame_tx_len = int(txframe[1])
+                    plugin_instance.frame_tx_id_widget.setText(str(frame_tx_id))
+                    plugin_instance.frame_tx_widget.setText(" ".join(txframe[2:(frame_tx_len+2)]))
+
+                    if hasattr(plugin_instance, "testgui_frameio_update"):
+                        plugin_instance.testgui_frameio_update(True, txframe)
+
+                    rxframe_raw = plugin_instance.INTERFACE["rxdata"]["value"]
+                    rxframe = []
+                    for p in rxframe_raw:
+                        rxframe.append(str(int(p)))
+                    frame_rx_id = int(rxframe[1])
+                    frame_rx_len = int(rxframe[2])
+                    plugin_instance.frame_rx_id_widget.setText(str(frame_rx_id))
+                    plugin_instance.frame_rx_widget.setText(" ".join(reversed(rxframe[3:(frame_rx_len+3)])))
+
+                    if hasattr(plugin_instance, "testgui_frameio_update"):
+                        plugin_instance.testgui_frameio_update(False, rxframe)
+
                 for halname, signal in haldata.get("input", {}).items():
                     value = signal["value"]
                     value_format = signal.get("format", "d")
                     value_unit = signal.get("unit", "")
+                    userconfig = signal.get("userconfig", {})
+                    value_unit = userconfig.get("display", {}).get("unit", value_unit)
+                    value_format = userconfig.get("display", {}).get("format", value_format)
+                    value_offset = userconfig.get("offset", 0.0)
+                    value_scale = userconfig.get("scale", 1.0)
+
+                    if value_scale != 1.0 or value_offset:
+                        value = (value + value_offset) / value_scale
+
                     value_str = f"%{value_format}" % (value,)
                     if signal.get("bool"):
-                        signal[f"widget_{plugin_instance.title}"].setChecked(value)
+                        signal[f"widget_{plugin_instance.title}"].setChecked(int(value))
                         if args.graphs and signal.get("direction") == "input":
                             gmin, gmax = signal[f"graph_minmax_{plugin_instance.title}"]
                             mm_changed = False
