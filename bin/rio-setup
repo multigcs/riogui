@@ -934,7 +934,7 @@ class WinForm(QWidget):
                         pinlabel = QPushButton(self.boardimg)
                         pinlabel.setFixedWidth(len(pin_id * 15))
                         pinlabel.setText(pin_id)
-                        pinlabel.move(QPoint(pin["pos"][0], pin["pos"][1]))
+                        pinlabel.move(QPoint(int(pin["pos"][0]), int(pin["pos"][1])))
                         pinlabel.setToolTip(tooltip)
                         pinlabel.setStyleSheet(f"background-color: {bgcolor}")
 
@@ -947,7 +947,7 @@ class WinForm(QWidget):
                         pinlabel = QPushButton(self.boardimg)
                         pinlabel.setFixedWidth(len(slot_name * 15))
                         pinlabel.setText(slot_name)
-                        pinlabel.move(QPoint(slot["pos"][0], slot["pos"][1]))
+                        pinlabel.move(QPoint(int(slot["pos"][0]), int(slot["pos"][1])))
                         pinlabel.setToolTip(tooltip)
                         pinlabel.setStyleSheet(f"background-color: {bgcolor}")
 
@@ -2051,7 +2051,6 @@ class WinForm(QWidget):
         tabwidget.addTab(options_tab, "Plugin")
 
         ## Pins
-
         pins = QVBoxLayout()
         label = QLabel("Pin-Setup")
         label.setFont(myFont)
@@ -2276,16 +2275,17 @@ class WinForm(QWidget):
         dialog.layout.addLayout(blayout)
         blayout.addWidget(tabwidget)
 
+
         plugin_path = f"{riocore_path}/plugins/{plugin_instance.NAME}"
         image_path = f"{plugin_path}/image.png"
         if os.path.isfile(image_path):
             ilabel = QLabel(self)
             pixmap = QPixmap(image_path)
             ilabel.setPixmap(pixmap)
-            self.resize(pixmap.width(), pixmap.height())
             blayout.addWidget(ilabel, stretch=1)
         dialog.layout.addWidget(dialog.buttonBox)
         dialog.setLayout(dialog.layout)
+
         if dialog.exec():
             self.config_load()
             self.display()
