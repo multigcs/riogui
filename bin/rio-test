@@ -220,8 +220,7 @@ class WinForm(QWidget):
                             row_layout.addWidget(signal[wid], stretch=6)
                             row_layout.addWidget(button, stretch=1)
 
-
-                if plugin_instance.TYPE == "frameio" == "frameio":
+                if args.debug and plugin_instance.TYPE == "frameio":
                     row_layout = QHBoxLayout()
                     tab_layout.addLayout(row_layout)
                     row_layout.addWidget(QLabel("      >SEND"), stretch=2)
@@ -424,7 +423,7 @@ class WinForm(QWidget):
                 self.time.append(self.time[-1] + 1)
 
             for plugin_instance, haldata in self.haldata.items():
-                if plugin_instance.TYPE == "frameio" == "frameio":
+                if args.debug and plugin_instance.TYPE == "frameio":
                     txframe_raw = plugin_instance.INTERFACE["txdata"]["value"]
                     txframe = []
                     if args.debug:
