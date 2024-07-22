@@ -21,10 +21,12 @@ from riocore import halpins
 from riocore.widgets import MyQSvgWidget, MyStandardItem, edit_float, edit_int, edit_text, edit_bool, edit_combobox, modifier_selector, STYLESHEET, STYLESHEET_CHECKBOX_GREEN_RED, STYLESHEET_BUTTON
 
 
-from PyQt5.QtCore import QTimer
+from PyQt5.QtCore import QTimer, QPoint, Qt
 from PyQt5.QtGui import QStandardItemModel, QFont, QPixmap
 from PyQt5.QtWidgets import (
+    QSizePolicy,
     QGroupBox,
+    QLineEdit,
     QApplication,
     QCheckBox,
     QComboBox,
@@ -202,6 +204,68 @@ help_text = {
 }
 
 
+mapping = {}
+
+
+class ImageMap(QLabel):
+    def __init__(self, parent):
+        super(QLabel, self).__init__(parent)
+        self.parent = parent
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            print(int(event.pos().x()), int(event.pos().y()))
+            configstr = self.setPin(event.pos())
+            slot, name, pin = configstr.split()
+
+            """
+            pinlabel = QLabel(self.parent.boardimg)
+            pinlabel.setFixedWidth(len(name*15))
+            pinlabel.setText(name)
+            pinlabel.move(QPoint(int(event.pos().x())-5, int(event.pos().y())-5))
+            """
+
+            if slot not in mapping:
+                mapping[slot] = {}
+
+            mapping[slot][name] = {"pin": pin, "pos": [int(event.pos().x()) - 5, int(event.pos().y()) - 5], "direction": "output"}
+            print(configstr)
+            print("")
+
+            slots = []
+            for slot, pins in mapping.items():
+                slots.append(
+                    {
+                        "name": slot,
+                        "comment": slot,
+                        "default": "",
+                        "pins": pins,
+                    }
+                )
+
+            print(json.dumps(slots, indent=4))
+
+    def setPin(self, pos):
+        dialog = QDialog()
+        dialog.setWindowTitle("set pin")
+        # dialog.setStyleSheet(STYLESHEET)
+
+        dialog.buttonBox = QDialogButtonBox(QDialogButtonBox.Ok)
+        dialog.buttonBox.accepted.connect(dialog.accept)
+
+        dialog.layout = QVBoxLayout()
+        message = QLabel("Slot:")
+        dialog.layout.addWidget(message)
+        configstr = QLineEdit("JOINT STEP 0")
+        dialog.layout.addWidget(configstr)
+
+        dialog.layout.addWidget(dialog.buttonBox)
+        dialog.setLayout(dialog.layout)
+
+        if dialog.exec():
+            return configstr.text()
+
+
 class WinForm(QWidget):
     def __init__(self, args, parent=None):
         super(WinForm, self).__init__(parent)
@@ -266,6 +330,12 @@ class WinForm(QWidget):
 
         self.imagew = MyQSvgWidget()
 
+        self.img_container = QWidget()
+        self.img_layout = QHBoxLayout(self.img_container)
+        self.boardimg = QWidget()
+        self.img_layout.addWidget(self.boardimg)
+
+        self.tabwidget.addTab(self.img_container, "Board")
         self.tabwidget.addTab(self.imagew, "Flow")
         self.tabwidget.addTab(self.pin_table, "Pins")
         self.tabwidget.addTab(self.sig_table, "Signals")
@@ -589,7 +659,21 @@ class WinForm(QWidget):
             return path
         elif os.path.exists(f"{riocore_path}/{path}"):
             return f"{riocore_path}/{path}"
+        elif os.path.exists(f"{riocore_path}/{path}"):
+            return f"{riocore_path}/{path}"
         print(f"can not find path: {path}")
+        exit(1)
+
+    def get_boardpath(self, board):
+        pathes = [
+            f"{board}.json",
+            f"{riocore_path}/boards/{board}.json",
+            f"{riocore_path}/boards/{board}/board.json",
+        ]
+        for path in pathes:
+            if os.path.exists(path):
+                return path
+        print(f"can not find board: {board}")
         exit(1)
 
     def testgui(self):
@@ -599,13 +683,288 @@ class WinForm(QWidget):
         testgui_path = f"{os.path.dirname(__file__)}/rio-test"
         os.system(f"({testgui_path} {filename} ; rm {filename}) &")
 
+    def open_pin(self, slot_name, pin_id):
+        plugin_needs = {}
+        plugin_list = self.plugins.list()
+        for plugin in plugin_list:
+            plugins = riocore.Plugins()
+            plugins.load_plugins({"plugins": [{"type": plugin["name"]}]})
+            plugin_needs[plugin["name"]] = {
+                "inputs": 0,
+                "outputs": 0,
+                "inouts": 0,
+                "opt_inputs": 0,
+                "opt_outputs": 0,
+                "opt_inouts": 0,
+            }
+            for pin_name, pin_defaults in plugins.plugin_instances[0].PINDEFAULTS.items():
+                direction = pin_defaults["direction"]
+                key = f"{direction}s"
+                if pin_defaults.get("optional", False):
+                    key = f"opt_{key}"
+                plugin_needs[plugin["name"]][key] += 1
+        possible_plugins = []
+        for slot in self.slots:
+            if slot_name == slot["name"]:
+                compatible = slot.get("compatible")
+                if compatible:
+                    possible_plugins = compatible
+                else:
+                    default = slot.get("default")
+                    possible_plugins.append(default)
+                    slot_has = {
+                        "inputs": 0,
+                        "outputs": 0,
+                        "inouts": 0,
+                        "alls": 0,
+                    }
+                    for _pin_id, pin in slot["pins"].items():
+                        if isinstance(pin, dict):
+                            direction = pin.get("direction", "all")
+                            slot_has[f"{direction}s"] += 1
+
+                    for pname, plugin_data in plugin_needs.items():
+                        match = True
+                        for key in ("inputs", "outputs", "inouts"):
+                            if not (slot_has[key] >= plugin_data[key] and slot_has[key] <= plugin_data[key] + plugin_data[f"opt_{key}"]):
+                                match = False
+                        if match and pname not in possible_plugins:
+                            possible_plugins.append(pname)
+                    for pname, plugin_data in plugin_needs.items():
+                        match = True
+                        for key in ("inputs", "outputs", "inouts"):
+                            if slot_has[key] + slot_has["alls"] < plugin_data[key]:
+                                match = False
+                        if match and pname not in possible_plugins:
+                            possible_plugins.append(pname)
+                break
+
+        dialog = QDialog()
+        dialog.setWindowTitle("select plugin")
+        dialog.setStyleSheet(STYLESHEET)
+
+        dialog.layout = QVBoxLayout()
+        dialog.buttonBox = QDialogButtonBox(QDialogButtonBox.Ok)
+        dialog.buttonBox.accepted.connect(dialog.accept)
+        dialog.setLayout(dialog.layout)
+
+        message = QLabel("Plugin:")
+        dialog.layout.addWidget(message)
+        plugin_combo = QComboBox(self)
+        dialog.layout.addWidget(plugin_combo)
+        for plugin_name in possible_plugins:
+            plugin_combo.addItem(plugin_name)
+
+        dialog.layout.addWidget(dialog.buttonBox)
+
+        if dialog.exec():
+            plugin_type = plugin_combo.currentText()
+            plugin_id = len(self.config["plugins"])
+            self.config["plugins"].append(
+                {
+                    "type": plugin_type,
+                    "pins": {},
+                }
+            )
+            plugin_instance = self.plugins.load_plugin(plugin_id, self.config["plugins"][plugin_id], self.config)
+            if plugin_instance:
+                slotpins = {
+                    "input": [],
+                    "output": [],
+                    "inout": [],
+                    "all": [],
+                }
+                for spin_name, spin in slot["pins"].items():
+                    direction = spin.get("direction", "all")
+                    if self.get_plugin_by_pin(spin["pin"]) == (None, None):
+                        if direction:
+                            slotpins[direction].append(spin_name)
+
+                # map single pin plugin to pin_id
+                num_mandatory = 0
+                for pin_name, pin_defaults in plugin_instance.PINDEFAULTS.items():
+                    optional = pin_defaults.get("optional")
+                    if optional is True:
+                        continue
+                    num_mandatory += 1
+
+                if num_mandatory == 1:
+                    for pin_name, pin_defaults in plugin_instance.PINDEFAULTS.items():
+                        optional = pin_defaults.get("optional")
+                        if optional is True:
+                            continue
+                        direction = pin_defaults.get("direction", "all")
+                        pinconfig = {"pin": f"{slot_name}:{pin_id}"}
+                        if direction in slotpins and pin_id in slotpins[direction]:
+                            slotpins[direction].remove(pin_id)
+                        self.config["plugins"][plugin_id]["pins"][pin_name] = pinconfig
+                else:
+                    # first mandatory pins
+                    for pin_name, pin_defaults in plugin_instance.PINDEFAULTS.items():
+                        optional = pin_defaults.get("optional")
+                        if optional is True:
+                            continue
+                        direction = pin_defaults.get("direction", "all")
+                        pinconfig = {"pin": ""}
+                        # find matching pins by name
+                        found = False
+                        for spin in slotpins[direction]:
+                            if pin_name.lower() == spin.lower():
+                                pinconfig = {"pin": f"{slot_name}:{spin}"}
+                                slotpins[direction].remove(spin)
+                                found = True
+                                break
+                        for spin in slotpins["all"]:
+                            if pin_name.lower() == spin.lower():
+                                pinconfig = {"pin": f"{slot_name}:{spin}"}
+                                slotpins["all"].remove(spin)
+                                found = True
+                                break
+                        if not found:
+                            # find matching pins by direction
+                            for spin in slotpins[direction]:
+                                pinconfig = {"pin": f"{slot_name}:{spin}"}
+                                slotpins[direction].remove(spin)
+                                found = True
+                                break
+                            for spin in slotpins["all"]:
+                                pinconfig = {"pin": f"{slot_name}:{spin}"}
+                                slotpins["all"].remove(spin)
+                                found = True
+                                break
+                        self.config["plugins"][plugin_id]["pins"][pin_name] = pinconfig
+
+                    # then optional pins
+                    for pin_name, pin_defaults in plugin_instance.PINDEFAULTS.items():
+                        optional = pin_defaults.get("optional", False)
+                        if optional is False:
+                            continue
+                        direction = pin_defaults.get("direction", "all")
+                        pinconfig = {"pin": None}
+                        # find matching pins by name
+                        found = False
+                        for spin in slotpins[direction]:
+                            if pin_name.lower() == spin.lower():
+                                pinconfig = {"pin": f"{slot_name}:{spin}"}
+                                slotpins[direction].remove(spin)
+                                found = True
+                                break
+                        if not found:
+                            # find matching pins by direction
+                            for spin in slotpins[direction]:
+                                pinconfig = {"pin": f"{slot_name}:{spin}"}
+                                slotpins[direction].remove(spin)
+                                found = True
+                                break
+                        self.config["plugins"][plugin_id]["pins"][pin_name] = pinconfig
+
+                self.tree_add_plugin(self.tree_plugins, plugin_instance, expand=True)
+            self.display()
+            self.edit_plugin(plugin_instance, plugin_instance.plugin_id, None)
+
+            return plugin_combo.currentText()
+
+    def get_plugin_by_pin(self, pinsearch):
+        for plugin_instance in self.plugins.plugin_instances:
+            name = plugin_instance.plugin_setup.get("name")
+            title = plugin_instance.NAME
+            if name:
+                title = f"{name} ({plugin_instance.NAME})"
+
+            for pin_name, pin_defaults in plugin_instance.PINDEFAULTS.items():
+                pin_setup = plugin_instance.plugin_setup.get("pins", {}).get(pin_name, {})
+                if not pin_setup and pin_defaults.get("optional") is True:
+                    continue
+                if "pin" not in pin_setup:
+                    continue
+                pin_str = pin_setup["pin"]
+                if pinsearch == pin_str:
+                    return (plugin_instance, pin_name)
+
+                pin_real = pin_str
+                if pin_str in self.pinmapping:
+                    pin_real = self.pinmapping[pin_str]
+                if pinsearch == pin_real:
+                    return (plugin_instance, pin_name)
+
+        return (None, None)
+
+    def config_pinlayout(self):
+        self.img_layout.removeWidget(self.boardimg)
+        self.boardimg = QWidget()
+        self.img_layout.addWidget(self.boardimg)
+
+        pinimage = self.board.get("pinimage")
+        if not pinimage:
+            if self.tabwidget.tabText(0) == "Board":
+                self.tabwidget.removeTab(0)
+            return
+
+        pixmap1 = QPixmap(f"{self.boardcfg_path}/{pinimage}")
+
+        self.image = ImageMap(self)
+        self.image.setAlignment(Qt.AlignRight | Qt.AlignTop)
+        self.image.setFixedSize(pixmap1.size())
+        self.image.setPixmap(pixmap1)
+
+        layout_box = QHBoxLayout(self.boardimg)
+        layout_box.setContentsMargins(0, 0, 0, 0)
+        layout_box.addWidget(self.image)
+        self.boardimg.setFixedSize(pixmap1.size())
+        self.img_container.setFixedSize(pixmap1.size())
+
+        for slot in self.slots:
+            slot_name = slot["name"]
+            for pin_id, pin in slot["pins"].items():
+                if isinstance(pin, dict):
+                    # check if pin is allready used
+
+                    bgcolor = "blue"
+                    if "pos" in pin:
+                        tooltip = f"{slot_name}:{pin_id} {pin['pin']} ({pin.get('direction', 'all')})"
+                    else:
+                        tooltip = f"{slot_name}"
+
+                    plugin_instance, pin_name = self.get_plugin_by_pin(pin["pin"])
+                    if plugin_instance:
+                        bgcolor = "green"
+                        tooltip += f"\n{plugin_instance.title} ({plugin_instance.NAME}) : {pin_name}"
+
+                    if "pos" in pin:
+                        pinlabel = QPushButton(self.boardimg)
+                        pinlabel.setFixedWidth(len(pin_id * 15))
+                        pinlabel.setText(pin_id)
+                        pinlabel.move(QPoint(pin["pos"][0], pin["pos"][1]))
+                        pinlabel.setToolTip(tooltip)
+                        pinlabel.setStyleSheet(f"background-color: {bgcolor}")
+
+                        if plugin_instance:
+                            pinlabel.clicked.connect(partial(self.edit_plugin, plugin_instance, plugin_instance.plugin_id, None))
+                        else:
+                            pinlabel.clicked.connect(partial(self.open_pin, slot_name, pin_id))
+
+                    elif "pos" in slot:
+                        pinlabel = QPushButton(self.boardimg)
+                        pinlabel.setFixedWidth(len(slot_name * 15))
+                        pinlabel.setText(slot_name)
+                        pinlabel.move(QPoint(slot["pos"][0], slot["pos"][1]))
+                        pinlabel.setToolTip(tooltip)
+                        pinlabel.setStyleSheet(f"background-color: {bgcolor}")
+
+                        if plugin_instance:
+                            pinlabel.clicked.connect(partial(self.edit_plugin, plugin_instance, plugin_instance.plugin_id, None))
+                        else:
+                            pinlabel.clicked.connect(partial(self.open_pin, slot_name, pin_id))
+
     def config_load(self):
         self.info_widget.setText(self.config_file)
 
         # loading board config
         boardcfg = self.config.get("boardcfg")
+        self.boardcfg_path = None
         if boardcfg:
-            board_file = self.get_path(f"boards/{boardcfg}.json")
+            board_file = self.get_boardpath(boardcfg)
+            self.boardcfg_path = os.path.dirname(board_file)
             self.board = {}
             boardJsonStr = open(board_file, "r").read()
             self.board = json.loads(boardJsonStr)
@@ -615,6 +974,8 @@ class WinForm(QWidget):
         for slot in self.slots:
             slot_name = slot["name"]
             for pin_id, pin in slot["pins"].items():
+                if isinstance(pin, dict):
+                    pin = pin["pin"]
                 pin_name = f"{slot_name}:{pin_id}"
                 slot_pinmapping[pin] = pin_name
 
@@ -693,6 +1054,8 @@ class WinForm(QWidget):
             slot_name = slot.get("name")
             slot_pins = slot.get("pins", {})
             for pin_name, pin in slot_pins.items():
+                if isinstance(pin, dict):
+                    pin = pin["pin"]
                 pin_id = f"{slot_name}:{pin_name}"
                 if pin not in self.pinlist:
                     self.pinlist.append(pin)
@@ -748,6 +1111,7 @@ class WinForm(QWidget):
             if slot_name:
                 self.slotnames.append(slot_name)
 
+        self.config_pinlayout()
         self.load_tree()
         self.pin_table_load()
         self.sig_table_load()
@@ -824,6 +1188,8 @@ class WinForm(QWidget):
             mportsl = []
             mportsr = []
             for pin_name, pin in slot_pins.items():
+                if isinstance(pin, dict):
+                    pin = pin["pin"]
                 pin_id = f"{slot_name}_{pin_name}"
                 mportsl.append(f"<{pin}>{pin}")
                 mportsr.append(f"<{pin_id}>{pin_name}")
@@ -1616,7 +1982,9 @@ class WinForm(QWidget):
 
         self.config_load()
 
-    def del_plugin(self, plugin_instance, plugin_id, widget):
+    def del_plugin(self, plugin_instance, plugin_id, widget, dialog=None):
+        if dialog is not None:
+            dialog.close()
         self.config["plugins"].pop(plugin_id)
         self.config_load()
         self.display()
@@ -1624,22 +1992,24 @@ class WinForm(QWidget):
     def edit_plugin(self, plugin_instance, plugin_id, widget):
         plugin_config = self.config["plugins"][plugin_id]
 
-        #print(self.config["plugins"][plugin_id])
-
         def update(arg):
             print("#update", arg, plugin_config)
 
         dialog = QDialog()
         dialog.setWindowTitle(f"edit Plugin {plugin_instance.NAME}")
-        # dialog.setFixedWidth(1200)
-        # dialog.setFixedHeight(600)
         dialog.setStyleSheet(STYLESHEET)
+        # dialog.buttonBox = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         dialog.buttonBox = QDialogButtonBox(QDialogButtonBox.Ok)
         dialog.buttonBox.accepted.connect(dialog.accept)
-        dialog.layout = QHBoxLayout()
+        # dialog.buttonBox.rejected.connect(dialog.reject)
 
+        remove = QPushButton(self.tr("Remove"))
+        cb = partial(self.del_plugin, plugin_instance, plugin_instance.plugin_id, dialog=dialog)
+        remove.clicked.connect(cb)
+        dialog.buttonBox.addButton(remove, QDialogButtonBox.ActionRole)
+
+        dialog.layout = QVBoxLayout()
         tabwidget = QTabWidget()
-
         options = QVBoxLayout()
 
         myFont = QFont()
@@ -1902,8 +2272,9 @@ class WinForm(QWidget):
                 row_n += 1
             tabwidget.addTab(signal_table, "Signals")
 
-        blayout = QVBoxLayout()
+        blayout = QHBoxLayout()
         dialog.layout.addLayout(blayout)
+        blayout.addWidget(tabwidget)
 
         plugin_path = f"{riocore_path}/plugins/{plugin_instance.NAME}"
         image_path = f"{plugin_path}/image.png"
@@ -1912,11 +2283,12 @@ class WinForm(QWidget):
             pixmap = QPixmap(image_path)
             ilabel.setPixmap(pixmap)
             self.resize(pixmap.width(), pixmap.height())
-            dialog.layout.addWidget(ilabel, stretch=1)
-        blayout.addWidget(tabwidget)
-        blayout.addWidget(dialog.buttonBox)
+            blayout.addWidget(ilabel, stretch=1)
+        dialog.layout.addWidget(dialog.buttonBox)
         dialog.setLayout(dialog.layout)
         if dialog.exec():
+            self.config_load()
+            self.display()
             return
 
     def config_plugin(self, plugin_instance, plugin_id, widget):

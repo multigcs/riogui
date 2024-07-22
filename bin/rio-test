@@ -116,7 +116,7 @@ class WinForm(QWidget):
             tab_widget = QWidget()
             self.tabwidget.addTab(tab_widget, plugin_type.title())
 
-            #tab_layout = QGridLayout()
+            # tab_layout = QGridLayout()
             tab_layout1 = QHBoxLayout()
             tab_widget.setLayout(tab_layout1)
 
@@ -131,7 +131,6 @@ class WinForm(QWidget):
                 ilabel.setPixmap(pixmap)
                 self.resize(pixmap.width(), pixmap.height())
                 tab_layout1.addWidget(ilabel, stretch=1)
-
 
             for plugin_instance, haldata in self.haldata.items():
                 if plugin_instance.NAME != plugin_type:
@@ -153,7 +152,6 @@ class WinForm(QWidget):
                         value_str = f"%{value_format}" % (value,)
                         halname_np = halname.split(".", 1)[-1]
                         halname_np = userconfig.get("display", {}).get("title", halname_np)
-
 
                         row_layout = QHBoxLayout()
                         tab_layout.addLayout(row_layout)
@@ -434,7 +432,7 @@ class WinForm(QWidget):
                     frame_tx_id = int(txframe[0])
                     frame_tx_len = int(txframe[1])
                     plugin_instance.frame_tx_id_widget.setText(str(frame_tx_id))
-                    plugin_instance.frame_tx_widget.setText(" ".join(txframe[2:(frame_tx_len+2)]))
+                    plugin_instance.frame_tx_widget.setText(" ".join(txframe[2 : (frame_tx_len + 2)]))
 
                     if hasattr(plugin_instance, "testgui_frameio_update"):
                         plugin_instance.testgui_frameio_update(True, txframe)
@@ -446,7 +444,7 @@ class WinForm(QWidget):
                     frame_rx_id = int(rxframe[1])
                     frame_rx_len = int(rxframe[2])
                     plugin_instance.frame_rx_id_widget.setText(str(frame_rx_id))
-                    plugin_instance.frame_rx_widget.setText(" ".join(reversed(rxframe[3:(frame_rx_len+3)])))
+                    plugin_instance.frame_rx_widget.setText(" ".join(reversed(rxframe[3 : (frame_rx_len + 3)])))
 
                     if hasattr(plugin_instance, "testgui_frameio_update"):
                         plugin_instance.testgui_frameio_update(False, rxframe)
