@@ -495,7 +495,10 @@ class WinForm(QWidget):
             self.button_generate.setEnabled(True)
 
             # checking generated config
-            ret = os.system(f"diff {self.config_file} Output/{config_name}/.config.json >/dev/null")
+            if os.path.isfile(f"Output/{config_name}/.config.json"):
+                ret = os.system(f"diff {self.config_file} Output/{config_name}/.config.json >/dev/null")
+            else:
+                ret = 1
             if ret == 0:
                 self.info_generated.setChecked(True)
                 self.button_compile.setEnabled(True)
@@ -686,6 +689,7 @@ class WinForm(QWidget):
     def open_pin(self, slot_name, pin_id):
         plugin_needs = {}
         plugin_list = self.plugins.list()
+        plugin_infos = {}
         for plugin in plugin_list:
             plugins = riocore.Plugins()
             plugins.load_plugins({"plugins": [{"type": plugin["name"]}]})
@@ -703,6 +707,13 @@ class WinForm(QWidget):
                 if pin_defaults.get("optional", False):
                     key = f"opt_{key}"
                 plugin_needs[plugin["name"]][key] += 1
+            plugin_infos[plugin["name"]] = {
+                "description": plugins.plugin_instances[0].DESCRIPTION,
+                "info": plugins.plugin_instances[0].INFO,
+                "pins": plugins.plugin_instances[0].PINDEFAULTS,
+                "signals": plugins.plugin_instances[0].SIGNALS,
+            }
+
         possible_plugins = []
         for slot in self.slots:
             if slot_name == slot["name"]:
@@ -711,7 +722,8 @@ class WinForm(QWidget):
                     possible_plugins = compatible
                 else:
                     default = slot.get("default")
-                    possible_plugins.append(default)
+                    if default:
+                        possible_plugins.append(default)
                     slot_has = {
                         "inputs": 0,
                         "outputs": 0,
@@ -728,14 +740,14 @@ class WinForm(QWidget):
                         for key in ("inputs", "outputs", "inouts"):
                             if not (slot_has[key] >= plugin_data[key] and slot_has[key] <= plugin_data[key] + plugin_data[f"opt_{key}"]):
                                 match = False
-                        if match and pname not in possible_plugins:
+                        if match and pname and pname not in possible_plugins:
                             possible_plugins.append(pname)
                     for pname, plugin_data in plugin_needs.items():
                         match = True
                         for key in ("inputs", "outputs", "inouts"):
                             if slot_has[key] + slot_has["alls"] < plugin_data[key]:
                                 match = False
-                        if match and pname not in possible_plugins:
+                        if match and pname and pname not in possible_plugins:
                             possible_plugins.append(pname)
                 break
 
@@ -748,24 +760,84 @@ class WinForm(QWidget):
         dialog.buttonBox.accepted.connect(dialog.accept)
         dialog.setLayout(dialog.layout)
 
-        message = QLabel("Plugin:")
-        dialog.layout.addWidget(message)
-        plugin_combo = QComboBox(self)
-        dialog.layout.addWidget(plugin_combo)
-        for plugin_name in possible_plugins:
-            plugin_combo.addItem(plugin_name)
+        def show_plugin_info(idx):
+            plugin_name = possible_plugins[idx]
+            plugin_path = f"{riocore_path}/plugins/{plugin_name}"
+            image_path = f"{plugin_path}/image.png"
+            if os.path.isfile(image_path):
+                pixmap = QPixmap(image_path)
+                image_label.setPixmap(pixmap)
+            else:
+                image_label.clear()
+            name_label.setText(plugin_name.replace("_", "-").title())
+            info_label.setText(plugin_infos[plugin_name]["info"])
+            description = plugin_infos[plugin_name]["description"] or "---"
+            description += "\n\nPins:\n"
+            for pin_name, pin_info in plugin_infos[plugin_name]["pins"].items():
+                optional = pin_info.get("optional")
+                if optional is True:
+                    description += f"  {pin_name}: {pin_info['direction']} (optional)\n"
+                else:
+                    description += f"  {pin_name}: {pin_info['direction']}\n"
+            description += "\nSignals:\n"
+            for signal_name, signal_info in plugin_infos[plugin_name]["signals"].items():
+                description += f"  {signal_name}: {signal_info['direction']}\n"
 
+            description_label.setText(description)
+            dialog.selected = plugin_name
+
+        plugin_table = QTableWidget()
+        plugin_table.setColumnCount(1)
+        plugin_table.setHorizontalHeaderItem(0, QTableWidgetItem("Plugins"))
+        plugin_table.setRowCount(len(possible_plugins))
+        for row, plugin_name in enumerate(possible_plugins):
+            pitem = QTableWidgetItem(plugin_name)
+            plugin_table.setItem(row, 0, pitem)
+        plugin_table.setFixedWidth(200)
+        plugin_table.cellClicked.connect(show_plugin_info)
+
+        mid_layout = QVBoxLayout()
+        mid_widget = QWidget()
+        mid_widget.setFixedWidth(400)
+        mid_widget.setLayout(mid_layout)
+        name_label = QLabel("name")
+        name_label_font = QFont()
+        name_label_font.setBold(True)
+        name_label.setFont(name_label_font)
+
+        mid_layout.addWidget(name_label)
+        info_label = QLabel("info")
+        mid_layout.addWidget(info_label)
+        description_label = QLabel("description")
+        mid_layout.addWidget(description_label)
+        mid_layout.addStretch()
+
+        right_layout = QVBoxLayout()
+        right_widget = QWidget()
+        right_widget.setLayout(right_layout)
+        image_label = QLabel(self)
+        right_layout.addWidget(image_label)
+        right_layout.addStretch()
+
+        infos = QHBoxLayout()
+        infos.addWidget(plugin_table, stretch=1)
+        infos.addWidget(mid_widget, stretch=3)
+        infos.addWidget(right_widget, stretch=1)
+
+        dialog.layout.addLayout(infos)
         dialog.layout.addWidget(dialog.buttonBox)
 
+        show_plugin_info(0)
+
         if dialog.exec():
-            plugin_type = plugin_combo.currentText()
             plugin_id = len(self.config["plugins"])
             self.config["plugins"].append(
                 {
-                    "type": plugin_type,
+                    "type": dialog.selected,
                     "pins": {},
                 }
             )
+
             plugin_instance = self.plugins.load_plugin(plugin_id, self.config["plugins"][plugin_id], self.config)
             if plugin_instance:
                 slotpins = {
@@ -859,10 +931,11 @@ class WinForm(QWidget):
                         self.config["plugins"][plugin_id]["pins"][pin_name] = pinconfig
 
                 self.tree_add_plugin(self.tree_plugins, plugin_instance, expand=True)
-            self.display()
-            self.edit_plugin(plugin_instance, plugin_instance.plugin_id, None)
+                self.display()
 
-            return plugin_combo.currentText()
+                self.edit_plugin(plugin_instance, plugin_instance.plugin_id, None, is_new=True)
+
+            return dialog.selected
 
     def get_plugin_by_pin(self, pinsearch):
         for plugin_instance in self.plugins.plugin_instances:
@@ -939,13 +1012,10 @@ class WinForm(QWidget):
                         pinlabel.setToolTip(tooltip)
                         pinlabel.setStyleSheet(f"background-color: {bgcolor}; font-size:12px;")
 
-
                         if plugin_instance:
                             pinlabel.clicked.connect(partial(self.edit_plugin, plugin_instance, plugin_instance.plugin_id, None))
                         else:
                             pinlabel.clicked.connect(partial(self.open_pin, slot_name, pin_id))
-
-
 
                     elif "pos" in slot:
                         pinlabel = QPushButton(self.boardimg)
@@ -1994,7 +2064,7 @@ class WinForm(QWidget):
         self.config_load()
         self.display()
 
-    def edit_plugin(self, plugin_instance, plugin_id, widget):
+    def edit_plugin(self, plugin_instance, plugin_id, widget, is_new=False):
         plugin_config = self.config["plugins"][plugin_id]
 
         def update(arg):
@@ -2104,6 +2174,8 @@ class WinForm(QWidget):
         pins.addStretch()
         pins_tab.setLayout(pins)
         tabwidget.addTab(pins_tab, "Pins")
+        if is_new:
+            tabwidget.setCurrentWidget(pins_tab)
 
         if plugin_instance.TYPE == "joint" and plugin_instance.plugin_setup.get("is_joint", False):
             if "joint" not in plugin_instance.plugin_setup:
@@ -2279,7 +2351,6 @@ class WinForm(QWidget):
         blayout = QHBoxLayout()
         dialog.layout.addLayout(blayout)
         blayout.addWidget(tabwidget)
-
 
         plugin_path = f"{riocore_path}/plugins/{plugin_instance.NAME}"
         image_path = f"{plugin_path}/image.png"
