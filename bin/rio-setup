@@ -932,24 +932,29 @@ class WinForm(QWidget):
 
                     if "pos" in pin:
                         pinlabel = QPushButton(self.boardimg)
-                        pinlabel.setFixedWidth(len(pin_id * 15))
+                        pinlabel.setFixedWidth(len(pin_id * 10))
+                        pinlabel.setFixedHeight(15)
                         pinlabel.setText(pin_id)
                         pinlabel.move(QPoint(int(pin["pos"][0]), int(pin["pos"][1])))
                         pinlabel.setToolTip(tooltip)
-                        pinlabel.setStyleSheet(f"background-color: {bgcolor}")
+                        pinlabel.setStyleSheet(f"background-color: {bgcolor}; font-size:12px;")
+
 
                         if plugin_instance:
                             pinlabel.clicked.connect(partial(self.edit_plugin, plugin_instance, plugin_instance.plugin_id, None))
                         else:
                             pinlabel.clicked.connect(partial(self.open_pin, slot_name, pin_id))
 
+
+
                     elif "pos" in slot:
                         pinlabel = QPushButton(self.boardimg)
-                        pinlabel.setFixedWidth(len(slot_name * 15))
+                        pinlabel.setFixedWidth(len(slot_name * 10))
+                        pinlabel.setFixedHeight(15)
                         pinlabel.setText(slot_name)
                         pinlabel.move(QPoint(int(slot["pos"][0]), int(slot["pos"][1])))
                         pinlabel.setToolTip(tooltip)
-                        pinlabel.setStyleSheet(f"background-color: {bgcolor}")
+                        pinlabel.setStyleSheet(f"background-color: {bgcolor}; font-size:12px;")
 
                         if plugin_instance:
                             pinlabel.clicked.connect(partial(self.edit_plugin, plugin_instance, plugin_instance.plugin_id, None))
