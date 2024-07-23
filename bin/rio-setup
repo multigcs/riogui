@@ -207,6 +207,33 @@ help_text = {
 mapping = {}
 
 
+class PinButton(QPushButton):
+    def __init__(self, widget, parent=None, pkey=None, bgcolor=None, pin=None):
+        super(QPushButton, self).__init__(widget)
+        self.parent = parent
+        self.pkey = pkey
+        self.bgcolor = bgcolor
+        self.pin = pin
+        if self.parent and self.bgcolor:
+            self.setStyleSheet(f"background-color: {self.bgcolor}; font-size:12px;")
+
+    def enterEvent(self, event):
+        if self.parent and self.pkey:
+            self.parent.pinlayout_mark(self.pkey)
+
+    def leaveEvent(self, event):
+        if self.parent and self.pkey:
+            self.parent.pinlayout_mark(":")
+
+    def mark(self, color):
+        if self.parent and color:
+            self.setStyleSheet(f"background-color: {color}; font-size:12px;")
+
+    def unmark(self):
+        if self.parent and self.bgcolor:
+            self.setStyleSheet(f"background-color: {self.bgcolor}; font-size:12px;")
+
+
 class ImageMap(QLabel):
     def __init__(self, parent):
         super(QLabel, self).__init__(parent)
@@ -217,13 +244,6 @@ class ImageMap(QLabel):
             print(int(event.pos().x()), int(event.pos().y()))
             configstr = self.setPin(event.pos())
             slot, name, pin = configstr.split()
-
-            """
-            pinlabel = QLabel(self.parent.boardimg)
-            pinlabel.setFixedWidth(len(name*15))
-            pinlabel.setText(name)
-            pinlabel.move(QPoint(int(event.pos().x())-5, int(event.pos().y())-5))
-            """
 
             if slot not in mapping:
                 mapping[slot] = {}
@@ -331,11 +351,20 @@ class WinForm(QWidget):
         self.imagew = MyQSvgWidget()
 
         self.img_container = QWidget()
-        self.img_layout = QHBoxLayout(self.img_container)
+        self.img_layout = QVBoxLayout(self.img_container)
         self.boardimg = QWidget()
         self.img_layout.addWidget(self.boardimg)
 
-        self.tabwidget.addTab(self.img_container, "Board")
+        self.pininfo = QLabel("")
+
+        ipin_layout = QVBoxLayout()
+        ipin_widget = QWidget()
+        ipin_widget.setLayout(ipin_layout)
+        ipin_layout.addWidget(self.img_container)
+        ipin_layout.addWidget(self.pininfo)
+        ipin_layout.addStretch()
+
+        self.tabwidget.addTab(ipin_widget, "Board")
         self.tabwidget.addTab(self.imagew, "Flow")
         self.tabwidget.addTab(self.pin_table, "Pins")
         self.tabwidget.addTab(self.sig_table, "Signals")
@@ -962,10 +991,43 @@ class WinForm(QWidget):
 
         return (None, None)
 
+    def pinlayout_mark(self, pkey):
+        slot_name = pkey.split(":")[0]
+        infotext = [f"Slot: {slot_name}"]
+        infotext.append(f"Pins:")
+
+        for key, label in self.pinlabels.items():
+            splitted = key.split(":")
+            if splitted[0] == slot_name:
+                color = "gray"
+                label.mark(color)
+                direction = label.pin.get("direction", "all")
+
+                plugin_instance, pin_name = self.get_plugin_by_pin(label.pin["pin"])
+                pinfo = ""
+                if plugin_instance:
+                    pinfo = f"-> {plugin_instance.title} ({plugin_instance.NAME}) : {pin_name}"
+
+                if key == pkey:
+                    pinfo += " <-"
+
+                infotext.append(f" {splitted[1]}: {label.pin['pin']} ({direction}) {pinfo}")
+            else:
+                label.unmark()
+        if len(infotext) > 2:
+            self.pininfo.setText("\n".join(infotext))
+        else:
+            self.pininfo.setText("")
+
     def config_pinlayout(self):
         self.img_layout.removeWidget(self.boardimg)
+        self.img_layout.removeWidget(self.pininfo)
         self.boardimg = QWidget()
         self.img_layout.addWidget(self.boardimg)
+        self.pininfo = QLabel("INFO")
+        self.img_layout.addWidget(self.pininfo)
+
+        self.pinlabels = {}
 
         pinimage = self.board.get("pinimage")
         if not pinimage:
@@ -980,17 +1042,18 @@ class WinForm(QWidget):
         self.image.setFixedSize(pixmap1.size())
         self.image.setPixmap(pixmap1)
 
-        layout_box = QHBoxLayout(self.boardimg)
+        layout_box = QVBoxLayout(self.boardimg)
         layout_box.setContentsMargins(0, 0, 0, 0)
         layout_box.addWidget(self.image)
         self.boardimg.setFixedSize(pixmap1.size())
-        self.img_container.setFixedSize(pixmap1.size())
+        #        self.img_container.setFixedSize(pixmap1.size())
 
         for slot in self.slots:
             slot_name = slot["name"]
             for pin_id, pin in slot["pins"].items():
                 if isinstance(pin, dict):
                     # check if pin is allready used
+                    pkey = f"{slot_name}:{pin_id}"
 
                     bgcolor = "blue"
                     if "pos" in pin:
@@ -1004,32 +1067,30 @@ class WinForm(QWidget):
                         tooltip += f"\n{plugin_instance.title} ({plugin_instance.NAME}) : {pin_name}"
 
                     if "pos" in pin:
-                        pinlabel = QPushButton(self.boardimg)
-                        pinlabel.setFixedWidth(len(pin_id * 10))
-                        pinlabel.setFixedHeight(15)
-                        pinlabel.setText(pin_id)
-                        pinlabel.move(QPoint(int(pin["pos"][0]), int(pin["pos"][1])))
-                        pinlabel.setToolTip(tooltip)
-                        pinlabel.setStyleSheet(f"background-color: {bgcolor}; font-size:12px;")
+                        self.pinlabels[pkey] = PinButton(self.boardimg, parent=self, pkey=pkey, bgcolor=bgcolor, pin=pin)
+                        self.pinlabels[pkey].setFixedWidth(len(pin_id * 10))
+                        self.pinlabels[pkey].setFixedHeight(15)
+                        self.pinlabels[pkey].setText(pin_id)
+                        self.pinlabels[pkey].move(QPoint(int(pin["pos"][0]), int(pin["pos"][1])))
+                        self.pinlabels[pkey].setToolTip(tooltip)
 
                         if plugin_instance:
-                            pinlabel.clicked.connect(partial(self.edit_plugin, plugin_instance, plugin_instance.plugin_id, None))
+                            self.pinlabels[pkey].clicked.connect(partial(self.edit_plugin, plugin_instance, plugin_instance.plugin_id, None))
                         else:
-                            pinlabel.clicked.connect(partial(self.open_pin, slot_name, pin_id))
+                            self.pinlabels[pkey].clicked.connect(partial(self.open_pin, slot_name, pin_id))
 
                     elif "pos" in slot:
-                        pinlabel = QPushButton(self.boardimg)
-                        pinlabel.setFixedWidth(len(slot_name * 10))
-                        pinlabel.setFixedHeight(15)
-                        pinlabel.setText(slot_name)
-                        pinlabel.move(QPoint(int(slot["pos"][0]), int(slot["pos"][1])))
-                        pinlabel.setToolTip(tooltip)
-                        pinlabel.setStyleSheet(f"background-color: {bgcolor}; font-size:12px;")
+                        self.pinlabels[pkey] = PinButton(self.boardimg, parent=self, pkey=pkey, bgcolor=bgcolor, pin=pin)
+                        self.pinlabels[pkey].setFixedWidth(len(slot_name * 10))
+                        self.pinlabels[pkey].setFixedHeight(15)
+                        self.pinlabels[pkey].setText(slot_name)
+                        self.pinlabels[pkey].move(QPoint(int(slot["pos"][0]), int(slot["pos"][1])))
+                        self.pinlabels[pkey].setToolTip(tooltip)
 
                         if plugin_instance:
-                            pinlabel.clicked.connect(partial(self.edit_plugin, plugin_instance, plugin_instance.plugin_id, None))
+                            self.pinlabels[pkey].clicked.connect(partial(self.edit_plugin, plugin_instance, plugin_instance.plugin_id, None))
                         else:
-                            pinlabel.clicked.connect(partial(self.open_pin, slot_name, pin_id))
+                            self.pinlabels[pkey].clicked.connect(partial(self.open_pin, slot_name, pin_id))
 
     def config_load(self):
         self.info_widget.setText(self.config_file)
