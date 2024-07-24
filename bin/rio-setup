@@ -995,6 +995,7 @@ class WinForm(QWidget):
         slot_name = pkey.split(":")[0]
         infotext = [f"Slot: {slot_name}"]
         infotext.append(f"Pins:")
+        networks = []
 
         for key, label in self.pinlabels.items():
             splitted = key.split(":")
@@ -1008,13 +1009,30 @@ class WinForm(QWidget):
                 if plugin_instance:
                     pinfo = f"-> {plugin_instance.title} ({plugin_instance.NAME}) : {pin_name}"
 
+                    for signal_name, signal_config in plugin_instance.signals().items():
+                        signal_direction = signal_config["direction"]
+                        signal_halname = signal_config["halname"]
+                        is_bool = signal_config.get("bool", False)
+                        htype = "bit" if is_bool else "float"
+                        if "userconfig" not in signal_config:
+                            signal_config["userconfig"] = {}
+                        userconfig = signal_config["userconfig"]
+                        net = userconfig.get("net")
+                        if net:
+                            networks.append(net)
+
                 if key == pkey:
                     pinfo += " <-"
 
                 infotext.append(f" {splitted[1]}: {label.pin['pin']} ({direction}) {pinfo}")
             else:
                 label.unmark()
+
         if len(infotext) > 2:
+            if networks:
+                infotext.append(f"Networks:")
+                for net in networks:
+                    infotext.append(f" {net}")
             self.pininfo.setText("\n".join(infotext))
         else:
             self.pininfo.setText("")
@@ -1062,6 +1080,7 @@ class WinForm(QWidget):
                         tooltip = f"{slot_name}"
 
                     plugin_instance, pin_name = self.get_plugin_by_pin(pin["pin"])
+                    userconfig = {}
                     if plugin_instance:
                         bgcolor = "green"
                         tooltip += f"\n{plugin_instance.title} ({plugin_instance.NAME}) : {pin_name}"
